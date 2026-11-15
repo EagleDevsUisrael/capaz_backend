@@ -1,0 +1,348 @@
+// Esquema de datos de Capaz (PostgreSQL en Supabase).
+// Fuente de verdad del modelo. database/schema.sql se deriva de este archivo:
+// si cambias algo aquí, regenera el SQL (ver README, "Base de datos").
+//
+// Convenciones: modelos y campos en camelCase (código en inglés), tablas y columnas en snake_case.
+// Las listas (habilidades, ajustes, exigencias, palabras clave) son arrays nativos de Postgres (text[]).
+// Sus valores válidos están en src/domain/catalog.ts y se validan en la API.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Catálogos fijos ────────────────────────────────────────────────────────
+
+/// Tipo de discapacidad leído del carnet. Es el filtro principal del match.
+enum DisabilityType {
+  physical
+  visual
+  hearing
+  intellectual
+  psychosocial
+
+  @@map("disability_type")
+}
+
+enum ContactPreference {
+  call
+  whatsapp
+  email
+
+  @@map("contact_preference")
+}
+
+/// Ordenados de menor a mayor: el match compara el nivel mínimo de la oferta.
+enum EducationLevel {
+  primary
+  highSchool
+  technical
+  university
+
+  @@map("education_level")
+}
+
+enum JobModality {
+  onSite
+  remote
+  hybrid
+
+  @@map("job_modality")
+}
+
+enum JobSchedule {
+  fullTime
+  partTime
+
+  @@map("job_schedule")
+}
+
+/// Progreso en 3 etapas (sent → inReview → interview) y dos cierres.
+enum ApplicationStatus {
+  sent
+  inReview
+  interview
+  hired
+  notSelected
+  withdrawn
+
+  @@map("application_status")
+}
+
+enum IdCardScanStatus {
+  /// Leído por el OCR, esperando que la persona confirme los datos
+  pending
+  /// La persona confirmó los datos en el registro
+  confirmed
+
+  @@map("id_card_scan_status")
+}
+
+enum CodeChannel {
+  whatsapp
+  sms
+
+  @@map("code_channel")
+}
+
+/// Permisos del paso 4 (Privacidad). Cada cambio queda registrado con su fecha (LOPDP).
+enum ConsentPurpose {
+  /// Usar el perfil para recomendar ofertas (obligatorio)
+  useProfile
+  /// La empresa ve solo los ajustes que la persona necesita
+  shareOnlyAccommodations
+  /// Las empresas pueden encontrar a la persona sin que postule
+  discoverable
+  /// Guardar las fotos del carnet después de confirmar los datos
+  keepIdCardImages
+
+  @@map("consent_purpose")
+}
+
+// ─── Personas candidatas ────────────────────────────────────────────────────
+
+model Candidate {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+
+  // Paso 1: carnet (datos sensibles; la empresa no los ve sin autorización)
+  idNumber          String         @unique @map("id_number") @db.VarChar(10)
+  fullName          String         @map("full_name")
+  birthDate         DateTime?      @map("birth_date") @db.Date
+  disabilityType    DisabilityType @map("disability_type")
+  disabilityPercent Int            @map("disability_percent") @db.SmallInt
+  /// Vigencia del carnet. null = indefinida o no indicada.
+  idCardValidUntil  DateTime?      @map("id_card_valid_until") @db.Date
+
+  // Paso 2: contacto
+  /// Nombre con el que la persona quiere que la llamen (paso 2). El nombre legal es fullName.
+  preferredName     String?           @map("preferred_name")
+  /// El login envía el código a este número: solo se guarda después de verificarlo
+  phone             String            @db.VarChar(10)
+  phoneVerifiedAt   DateTime          @map("phone_verified_at") @db.Timestamptz(6)
+  email             String
+  city              String
+  contactPreference ContactPreference @default(whatsapp) @map("contact_preference")
+
+  // Paso 3: experiencia y ajustes (opcional)
+  hasWorked            Boolean?        @map("has_worked")
+  experienceText       String          @default("") @map("experience_text")
+  cvFileName           String?         @map("cv_file_name")
+  education            EducationLevel?
+  skills               String[]        @default([])
+  accommodationsNeeded String[]        @default([]) @map("accommodations_needed")
+  otherAccommodation   String          @default("") @map("other_accommodation")
+
+  // Paso 4: privacidad (valores vigentes; el historial está en consent_records)
+  shareOnlyAccommodations Boolean  @default(true) @map("share_only_accommodations")
+  discoverable            Boolean  @default(false)
+  consentAt               DateTime @map("consent_at") @db.Timestamptz(6)
+
+  /// Candidato de prueba creado desde el admin (no puede iniciar sesión)
+  isTest    Boolean  @default(false) @map("is_test")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  consents     ConsentRecord[]
+  idCardScans  IdCardScan[]
+  loginCodes   LoginCode[]
+  sessions     Session[]
+  applications Application[]
+
+  @@index([disabilityType])
+  @@map("candidates")
+}
+
+/// Historial de consentimientos: la ley exige poder demostrar cuándo se dio cada permiso.
+model ConsentRecord {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId   String         @map("candidate_id") @db.Uuid
+  purpose       ConsentPurpose
+  granted       Boolean
+  policyVersion String         @map("policy_version")
+  ipAddress     String?        @map("ip_address")
+  userAgent     String?        @map("user_agent")
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId, purpose, createdAt])
+  @@map("consent_records")
+}
+
+// ─── Carnet: OCR y traspaso computadora → celular ───────────────────────────
+
+/// Fotos del carnet y datos leídos. Las imágenes se guardan cifradas (AES-256-GCM)
+/// y se borran al confirmar los datos, salvo que la persona acepte guardarlas.
+model IdCardScan {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String?          @map("candidate_id") @db.Uuid
+  status      IdCardScanStatus @default(pending)
+  frontImage  Bytes?           @map("front_image")
+  frontMime   String?          @map("front_mime")
+  backImage   Bytes?           @map("back_image")
+  backMime    String?          @map("back_mime")
+  /// { fullName, idNumber, birthDate, disabilityType, disabilityPercent, validity }
+  extracted   Json
+  /// Confianza del OCR por campo, de 0 a 1
+  confidence  Json
+  ocrProvider String           @map("ocr_provider")
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// Si nadie lo confirma antes de esta fecha, se borra
+  expiresAt   DateTime         @map("expires_at") @db.Timestamptz(6)
+  confirmedAt DateTime?        @map("confirmed_at") @db.Timestamptz(6)
+
+  candidate Candidate? @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([status, expiresAt])
+  @@map("id_card_scans")
+}
+
+/// "Continuar en el celular": enlace de un solo uso (10 minutos) para tomar las fotos con el celular.
+model IdCardHandoff {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// SHA-256 del token del QR (el token en claro nunca se guarda)
+  tokenHash  String    @unique @map("token_hash")
+  frontImage Bytes?    @map("front_image")
+  frontMime  String?   @map("front_mime")
+  backImage  Bytes?    @map("back_image")
+  backMime   String?   @map("back_mime")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(6)
+  /// La computadora ya recogió las fotos: el enlace deja de servir
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(6)
+
+  @@index([expiresAt])
+  @@map("id_card_handoffs")
+}
+
+// ─── Ingreso sin contraseña ─────────────────────────────────────────────────
+
+/// Verificación del celular con un código de 4 dígitos (registro y cambio de número).
+/// Se crea antes de que exista la cuenta, por eso no tiene candidate_id.
+model PhoneVerification {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone      String      @db.VarChar(10)
+  codeHash   String      @map("code_hash")
+  channel    CodeChannel
+  attempts   Int         @default(0) @db.SmallInt
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt  DateTime    @map("expires_at") @db.Timestamptz(6)
+  /// Código correcto: desde aquí hay 30 minutos para terminar el registro
+  verifiedAt DateTime?   @map("verified_at") @db.Timestamptz(6)
+  /// Ya se usó para crear la cuenta o cambiar el número
+  consumedAt DateTime?   @map("consumed_at") @db.Timestamptz(6)
+
+  @@index([phone, createdAt])
+  @@map("phone_verifications")
+}
+
+/// Código de 4 dígitos por WhatsApp o SMS.
+model LoginCode {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String      @map("candidate_id") @db.Uuid
+  codeHash    String      @map("code_hash")
+  channel     CodeChannel
+  attempts    Int         @default(0) @db.SmallInt
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt   DateTime    @map("expires_at") @db.Timestamptz(6)
+  consumedAt  DateTime?   @map("consumed_at") @db.Timestamptz(6)
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId, createdAt])
+  @@map("login_codes")
+}
+
+model Session {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String    @map("candidate_id") @db.Uuid
+  /// SHA-256 del token de sesión
+  tokenHash   String    @unique @map("token_hash")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  expiresAt   DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt   DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@map("sessions")
+}
+
+// ─── Ofertas (las carga el admin de demostración) ───────────────────────────
+
+model Job {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String
+  company         String
+  city            String
+  modality        JobModality
+  schedule        JobSchedule
+  salaryMin       Int?        @map("salary_min")
+  salaryMax       Int?        @map("salary_max")
+  description     String      @default("")
+  /// "Qué harás": una tarea por elemento
+  tasks           String[]    @default([])
+  requirements    String[]    @default([])
+  /// Resumen en lectura fácil, escrito a mano por el admin
+  easyReadSummary String      @default("") @map("easy_read_summary")
+
+  // Datos que usa el motor de match
+  compatibleDisabilities String[]        @default([]) @map("compatible_disabilities")
+  physicalDemands        String[]        @default([]) @map("physical_demands")
+  accommodationsOffered  String[]        @default([]) @map("accommodations_offered")
+  keywords               String[]        @default([])
+  minEducation           EducationLevel? @map("min_education")
+
+  isActive  Boolean  @default(true) @map("is_active")
+  /// Creada con "Generar 10 ofertas al azar"
+  isDemo    Boolean  @default(false) @map("is_demo")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  applications Application[]
+
+  @@index([isActive, createdAt])
+  @@map("jobs")
+}
+
+// ─── Postulaciones ──────────────────────────────────────────────────────────
+
+model Application {
+  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId    String            @map("candidate_id") @db.Uuid
+  jobId          String            @map("job_id") @db.Uuid
+  status         ApplicationStatus @default(sent)
+  /// Compatibilidad calculada al postular (0 a 100)
+  matchScore     Int               @map("match_score") @db.SmallInt
+  interviewAt    DateTime?         @map("interview_at") @db.Timestamptz(6)
+  interviewPlace String?           @map("interview_place")
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  candidate Candidate          @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  job       Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  events    ApplicationEvent[]
+
+  @@unique([candidateId, jobId])
+  @@index([jobId])
+  @@map("applications")
+}
+
+/// Historial de cambios de estado (para la línea de tiempo de "Mis postulaciones").
+model ApplicationEvent {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  applicationId String            @map("application_id") @db.Uuid
+  status        ApplicationStatus
+  note          String?
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId, createdAt])
+  @@map("application_events")
+}
