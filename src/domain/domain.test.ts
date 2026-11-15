@@ -30,7 +30,7 @@ describe('motor de match (ejemplo del documento)', () => {
   it('Conductor profesional: seated choca con walkingDriving → descartado (0 %)', () => {
     const m = scoreJob(DEMO_CANDIDATE, job('Conductor profesional'))
     expect(m).toMatchObject({ rejected: true, score: 0, recommended: false })
-    expect(m.rejectReason).toMatch(/^El puesto exige/)
+    expect(m.rejectReason).toBe('El puesto exige caminar o conducir') // mockup: "descartado: exige caminar/conducir"
   })
 
   it('descarta si el tipo de discapacidad no es compatible', () => {

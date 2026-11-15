@@ -10,6 +10,7 @@ import { Prisma } from '../generated/prisma/client.js'
 import { conflict, gone, notFound } from '../lib/errors.js'
 import { createSession, recordConsents } from '../lib/sessions.js'
 import { matchCandidateOf, profileDto } from './dto.js'
+import { claimCvUpload } from './cv.js'
 import { consumeVerifiedPhone } from './phone.js'
 import { contactData, experienceData, idCardData, privacyData, uuid } from './schemas.js'
 
@@ -24,6 +25,8 @@ const body = z.object({
   privacy: privacyData,
   /** Oferta a la que la persona quería postular antes de registrarse (pendingJob del front) */
   applyToJobId: uuid.nullable().optional(),
+  /** cvUploadId de POST /api/cv-uploads (hoja de vida opcional del paso 3) */
+  cvUploadId: uuid.nullable().optional(),
 })
 
 export const signupRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -34,7 +37,7 @@ export const signupRoutes: FastifyPluginAsyncZod = async (app) => {
       config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
     },
     async (req, reply) => {
-      const { scanId, idCard, contact, phoneVerificationId, experience, privacy, applyToJobId } = req.body
+      const { scanId, idCard, contact, phoneVerificationId, experience, privacy, applyToJobId, cvUploadId } = req.body
 
       const scan = await app.db.idCardScan.findUnique({ where: { id: scanId } })
       if (!scan || scan.status !== 'pending') {
@@ -61,7 +64,8 @@ export const signupRoutes: FastifyPluginAsyncZod = async (app) => {
               birthDate: idCard.birthDate ? new Date(idCard.birthDate) : null,
               disabilityType: idCard.disabilityType,
               disabilityPercent: idCard.disabilityPercent,
-              idCardValidUntil: idCard.validity ? new Date(idCard.validity) : null,
+              idCardValidUntil: idCard.validity && idCard.validity !== 'indefinite' ? new Date(idCard.validity) : null,
+              idCardValidIndefinitely: idCard.validity === 'indefinite',
               preferredName: contact.fullName !== idCard.fullName ? contact.fullName : null,
               phone: contact.phone,
               phoneVerifiedAt,
@@ -70,7 +74,7 @@ export const signupRoutes: FastifyPluginAsyncZod = async (app) => {
               contactPreference: contact.preferred,
               hasWorked: experience.hasWorked === null ? null : experience.hasWorked === 'yes',
               experienceText: experience.experienceText,
-              cvFileName: experience.cvFileName || null,
+              cvFileName: cvUploadId ? null : experience.cvFileName || null,
               education: experience.education,
               skills: experience.skills,
               accommodationsNeeded: experience.accommodationsNeeded,
@@ -80,6 +84,9 @@ export const signupRoutes: FastifyPluginAsyncZod = async (app) => {
               consentAt: now,
             },
           })
+
+          const cvFileName = cvUploadId ? await claimCvUpload(tx, cvUploadId, candidate.id) : null
+          if (cvFileName) await tx.candidate.update({ where: { id: candidate.id }, data: { cvFileName } })
 
           await recordConsents(app, tx, req, candidate.id, {
             useProfile: true,
@@ -112,7 +119,7 @@ export const signupRoutes: FastifyPluginAsyncZod = async (app) => {
           }
 
           const session = await createSession(app, candidate.id, tx)
-          return { candidate, session, applicationId }
+          return { candidate: { ...candidate, cvFileName: cvFileName ?? candidate.cvFileName }, session, applicationId }
         })
 
         return reply.status(201).send({

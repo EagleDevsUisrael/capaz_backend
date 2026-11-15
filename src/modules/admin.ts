@@ -13,7 +13,7 @@ import { rankJobs } from '../domain/matchEngine.js'
 import { notFound } from '../lib/errors.js'
 import { randomCandidates, randomJobs } from '../seed/demoData.js'
 import { applicationDto, jobDto, matchCandidateOf } from './dto.js'
-import { accommodations, disabilityType, educationLevel, idParam, jobInput, skills, uuid } from './schemas.js'
+import { accommodations, disabilityType, educationLevel, idParam, interviewMode, jobInput, skills, toJobData, uuid } from './schemas.js'
 
 const matchCandidate = z.object({
   disabilityType,
@@ -44,14 +44,14 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   })
 
   app.post('/jobs', { schema: { tags, security, body: jobInput } }, async (req, reply) => {
-    const j = await app.db.job.create({ data: req.body })
+    const j = await app.db.job.create({ data: toJobData(req.body) })
     return reply.status(201).send(jobDto(j))
   })
 
   app.put('/jobs/:id', { schema: { tags, security, params: idParam, body: jobInput } }, async (req) => {
     const exists = await app.db.job.findUnique({ where: { id: req.params.id }, select: { id: true } })
     if (!exists) throw notFound()
-    return jobDto(await app.db.job.update({ where: { id: req.params.id }, data: req.body }))
+    return jobDto(await app.db.job.update({ where: { id: req.params.id }, data: toJobData(req.body) }))
   })
 
   app.delete('/jobs/:id', { schema: { tags, security, params: idParam } }, async (req, reply) => {
@@ -64,7 +64,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
     '/jobs/random',
     { schema: { tags, security, body: z.object({ count: z.number().int().min(1).max(50).default(10) }).default({ count: 10 }) } },
     async (req, reply) => {
-      const data = randomJobs(req.body.count).map((j) => ({ ...j, isDemo: true }))
+      const data = randomJobs(req.body.count).map((j) => ({ ...toJobData(j), isDemo: true }))
       const created = await app.db.job.createManyAndReturn({ data })
       return reply.status(201).send({ items: created.map(jobDto) })
     },
@@ -135,7 +135,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get('/applications', { schema: { tags, security } }, async () => {
     const items = await app.db.application.findMany({ include: { job: true }, orderBy: { updatedAt: 'desc' }, take: 200 })
     // Sin datos de la persona: el admin solo mueve estados
-    return { items: items.map(applicationDto) }
+    return { items: items.map((a) => applicationDto(a)) }
   })
 
   app.patch(
@@ -148,6 +148,7 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
         body: z.object({
           status: z.enum(['sent', 'inReview', 'interview', 'hired', 'notSelected']),
           interviewAt: z.iso.datetime({ offset: true }).nullable().optional(),
+          interviewMode: interviewMode.nullable().optional(),
           interviewPlace: z.string().max(200).nullable().optional(),
           note: z.string().max(500).optional(),
         }),
@@ -156,12 +157,17 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
     async (req) => {
       const a = await app.db.application.findUnique({ where: { id: req.params.id }, select: { id: true } })
       if (!a) throw notFound()
-      const { status, interviewAt, interviewPlace, note } = req.body
+      const { status, interviewAt, interviewMode: mode, interviewPlace, note } = req.body
       const u = await app.db.application.update({
         where: { id: a.id },
         data: {
           status,
-          ...(interviewAt !== undefined && { interviewAt: interviewAt ? new Date(interviewAt) : null }),
+          // Una fecha nueva pide confirmar otra vez
+          ...(interviewAt !== undefined && {
+            interviewAt: interviewAt ? new Date(interviewAt) : null,
+            interviewConfirmedAt: null,
+          }),
+          ...(mode !== undefined && { interviewMode: mode }),
           ...(interviewPlace !== undefined && { interviewPlace }),
           events: { create: { status, note: note ?? null } },
         },

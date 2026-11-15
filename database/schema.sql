@@ -23,10 +23,13 @@ CREATE TYPE "education_level" AS ENUM ('primary', 'highSchool', 'technical', 'un
 CREATE TYPE "job_modality" AS ENUM ('onSite', 'remote', 'hybrid');
 
 -- CreateEnum
-CREATE TYPE "job_schedule" AS ENUM ('fullTime', 'partTime');
+CREATE TYPE "job_schedule" AS ENUM ('fullTime', 'partTime', 'internship');
 
 -- CreateEnum
 CREATE TYPE "application_status" AS ENUM ('sent', 'inReview', 'interview', 'hired', 'notSelected', 'withdrawn');
+
+-- CreateEnum
+CREATE TYPE "interview_mode" AS ENUM ('inPerson', 'videoCall', 'phoneCall');
 
 -- CreateEnum
 CREATE TYPE "id_card_scan_status" AS ENUM ('pending', 'confirmed');
@@ -46,6 +49,7 @@ CREATE TABLE "candidates" (
     "disability_type" "disability_type" NOT NULL,
     "disability_percent" SMALLINT NOT NULL,
     "id_card_valid_until" DATE,
+    "id_card_valid_indefinitely" BOOLEAN NOT NULL DEFAULT false,
     "preferred_name" TEXT,
     "phone" VARCHAR(10) NOT NULL,
     "phone_verified_at" TIMESTAMPTZ(6) NOT NULL,
@@ -159,6 +163,20 @@ CREATE TABLE "sessions" (
 );
 
 -- CreateTable
+CREATE TABLE "cv_files" (
+    "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "candidate_id" UUID,
+    "file_name" TEXT NOT NULL,
+    "mime" TEXT NOT NULL,
+    "size_bytes" INTEGER NOT NULL,
+    "data" BYTEA NOT NULL,
+    "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expires_at" TIMESTAMPTZ(6),
+
+    CONSTRAINT "cv_files_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "jobs" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "title" TEXT NOT NULL,
@@ -168,10 +186,16 @@ CREATE TABLE "jobs" (
     "schedule" "job_schedule" NOT NULL,
     "salary_min" INTEGER,
     "salary_max" INTEGER,
+    "province" TEXT,
+    "daily_hours" SMALLINT,
+    "summary" TEXT NOT NULL DEFAULT '',
     "description" TEXT NOT NULL DEFAULT '',
     "tasks" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "requirements" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "accommodations_detail" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "salary_benefits" TEXT NOT NULL DEFAULT '',
     "easy_read_summary" TEXT NOT NULL DEFAULT '',
+    "easy_read" JSONB,
     "compatible_disabilities" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "physical_demands" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "accommodations_offered" TEXT[] DEFAULT ARRAY[]::TEXT[],
@@ -193,7 +217,9 @@ CREATE TABLE "applications" (
     "status" "application_status" NOT NULL DEFAULT 'sent',
     "match_score" SMALLINT NOT NULL,
     "interview_at" TIMESTAMPTZ(6),
+    "interview_mode" "interview_mode",
     "interview_place" TEXT,
+    "interview_confirmed_at" TIMESTAMPTZ(6),
     "created_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -242,6 +268,12 @@ CREATE UNIQUE INDEX "sessions_token_hash_key" ON "sessions"("token_hash");
 CREATE INDEX "sessions_candidate_id_idx" ON "sessions"("candidate_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "cv_files_candidate_id_key" ON "cv_files"("candidate_id");
+
+-- CreateIndex
+CREATE INDEX "cv_files_expires_at_idx" ON "cv_files"("expires_at");
+
+-- CreateIndex
 CREATE INDEX "jobs_is_active_created_at_idx" ON "jobs"("is_active", "created_at");
 
 -- CreateIndex
@@ -264,6 +296,9 @@ ALTER TABLE "login_codes" ADD CONSTRAINT "login_codes_candidate_id_fkey" FOREIGN
 
 -- AddForeignKey
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_candidate_id_fkey" FOREIGN KEY ("candidate_id") REFERENCES "candidates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "cv_files" ADD CONSTRAINT "cv_files_candidate_id_fkey" FOREIGN KEY ("candidate_id") REFERENCES "candidates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "applications" ADD CONSTRAINT "applications_candidate_id_fkey" FOREIGN KEY ("candidate_id") REFERENCES "candidates"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -291,12 +326,15 @@ ALTER TABLE "candidates" ADD CONSTRAINT "candidates_accommodations_needed_valid"
 ALTER TABLE "jobs" ADD CONSTRAINT "jobs_compatible_disabilities_valid" CHECK ("compatible_disabilities" <@ ARRAY['physical', 'visual', 'hearing', 'intellectual', 'psychosocial']::text[]);
 ALTER TABLE "jobs" ADD CONSTRAINT "jobs_physical_demands_valid" CHECK ("physical_demands" <@ ARRAY['bothHands', 'standing', 'walkingDriving', 'seeScreen', 'phoneSpeaking', 'hearing']::text[]);
 ALTER TABLE "jobs" ADD CONSTRAINT "jobs_accommodations_offered_valid" CHECK ("accommodations_offered" <@ ARRAY['seated', 'ramp', 'flexibleSchedule', 'adaptedKeyboard', 'screenReader', 'signLanguage']::text[]);
+ALTER TABLE "jobs" ADD CONSTRAINT "jobs_province_valid" CHECK ("province" IS NULL OR "province" = ANY (ARRAY['azuay', 'bolivar', 'canar', 'carchi', 'chimborazo', 'cotopaxi', 'elOro', 'esmeraldas', 'galapagos', 'guayas', 'imbabura', 'loja', 'losRios', 'manabi', 'moronaSantiago', 'napo', 'orellana', 'pastaza', 'pichincha', 'santaElena', 'santoDomingo', 'sucumbios', 'tungurahua', 'zamoraChinchipe']::text[]));
 
 ALTER TABLE "candidates" ADD CONSTRAINT "candidates_id_number_format" CHECK ("id_number" ~ '^[0-9]{10}$');
 ALTER TABLE "candidates" ADD CONSTRAINT "candidates_phone_format" CHECK ("phone" ~ '^09[0-9]{8}$');
 ALTER TABLE "candidates" ADD CONSTRAINT "candidates_disability_percent_range" CHECK ("disability_percent" BETWEEN 1 AND 100);
 ALTER TABLE "phone_verifications" ADD CONSTRAINT "phone_verifications_phone_format" CHECK ("phone" ~ '^09[0-9]{8}$');
 ALTER TABLE "jobs" ADD CONSTRAINT "jobs_compatible_disabilities_not_empty" CHECK (cardinality("compatible_disabilities") > 0);
+ALTER TABLE "jobs" ADD CONSTRAINT "jobs_daily_hours_range" CHECK ("daily_hours" IS NULL OR "daily_hours" BETWEEN 1 AND 24);
+ALTER TABLE "cv_files" ADD CONSTRAINT "cv_files_size_range" CHECK ("size_bytes" BETWEEN 1 AND 10485760);
 ALTER TABLE "jobs" ADD CONSTRAINT "jobs_salary_range" CHECK ("salary_min" IS NULL OR "salary_max" IS NULL OR "salary_min" <= "salary_max");
 ALTER TABLE "applications" ADD CONSTRAINT "applications_match_score_range" CHECK ("match_score" BETWEEN 0 AND 100);
 
@@ -328,6 +366,7 @@ ALTER TABLE "id_card_handoffs" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "phone_verifications" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "login_codes" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "sessions" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "cv_files" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "jobs" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "applications" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "application_events" ENABLE ROW LEVEL SECURITY;
@@ -335,6 +374,7 @@ ALTER TABLE "schema_migrations" ENABLE ROW LEVEL SECURITY;
 
 -- Migraciones incluidas en este estado
 INSERT INTO "schema_migrations" ("version", "name") VALUES
-  ('0001', 'init');
+  ('0001', 'init'),
+  ('0002', 'ajustes_mockups');
 
 COMMIT;

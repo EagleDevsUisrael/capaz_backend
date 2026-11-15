@@ -19,7 +19,9 @@ export const CODE_TTL_MS = 10 * 60 * 1000
 /** Tiempo para terminar el registro después de verificar */
 export const VERIFIED_TTL_MS = 30 * 60 * 1000
 const MAX_ATTEMPTS = 5
-const RESEND_AFTER_MS = 60 * 1000
+/** "¿No llegó? Reenviar en 0:45" */
+export const RESEND_AFTER_SECONDS = 45
+const RESEND_AFTER_MS = RESEND_AFTER_SECONDS * 1000
 const MAX_PER_HOUR = 5
 
 const codeHash = (verificationId: string, code: string) => sha256(`phone:${verificationId}:${code}`)
@@ -74,7 +76,7 @@ export const phoneRoutes: FastifyPluginAsyncZod = async (app) => {
       })
       if (recent.length >= MAX_PER_HOUR) throw tooMany('Pediste muchos códigos para este número. Espera una hora.')
       if (recent[0] && Date.now() - recent[0].createdAt.getTime() < RESEND_AFTER_MS) {
-        throw tooMany('Ya te enviamos un código. Espera un minuto antes de pedir otro.')
+        throw tooMany(`Ya te enviamos un código. Espera ${RESEND_AFTER_SECONDS} segundos antes de pedir otro.`)
       }
 
       const code = newLoginCode()
@@ -89,6 +91,7 @@ export const phoneRoutes: FastifyPluginAsyncZod = async (app) => {
       return reply.status(202).send({
         verificationId: v.id,
         channel,
+        resendAfterSeconds: RESEND_AFTER_SECONDS,
         expiresAt: v.expiresAt.toISOString(),
         ...(app.config.EXPOSE_DEV_LOGIN_CODE && { devCode: code }),
       })

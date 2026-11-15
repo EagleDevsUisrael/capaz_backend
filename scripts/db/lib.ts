@@ -13,6 +13,7 @@ import {
   ACCOMMODATION_CODES,
   DISABILITY_TYPE_CODES,
   PHYSICAL_DEMAND_CODES,
+  PROVINCE_CODES,
   SKILL_CODES,
 } from '../../src/domain/catalog.ts'
 
@@ -36,22 +37,30 @@ export function prismaDiff(from: string, to: string) {
     .trim()
 }
 
-// ─── CHECK de los arrays (dependen del catálogo) ────────────────────────────
+// ─── CHECK de catálogo (dependen de src/domain/catalog.ts) ──────────────────
 
-export type ArrayChecks = Record<string, readonly string[]>
-/** "tabla.columna" → códigos permitidos */
-export const currentArrayChecks = (): ArrayChecks => ({
-  'candidates.skills': SKILL_CODES,
-  'candidates.accommodations_needed': ACCOMMODATION_CODES,
-  'jobs.compatible_disabilities': DISABILITY_TYPE_CODES,
-  'jobs.physical_demands': PHYSICAL_DEMAND_CODES,
-  'jobs.accommodations_offered': ACCOMMODATION_CODES,
+/** Columna array (text[]) o escalar (text, null permitido) con códigos permitidos. */
+export type CatalogCheck = { codes: readonly string[]; scalar?: boolean }
+/** "tabla.columna" → regla. (Los snapshots viejos guardan solo el array de códigos.) */
+export type ArrayChecks = Record<string, CatalogCheck | readonly string[]>
+const norm = (c: CatalogCheck | readonly string[] | undefined): CatalogCheck | undefined =>
+  c === undefined ? undefined : Array.isArray(c) ? { codes: c } : (c as CatalogCheck)
+
+export const currentArrayChecks = (): Record<string, CatalogCheck> => ({
+  'candidates.skills': { codes: SKILL_CODES },
+  'candidates.accommodations_needed': { codes: ACCOMMODATION_CODES },
+  'jobs.compatible_disabilities': { codes: DISABILITY_TYPE_CODES },
+  'jobs.physical_demands': { codes: PHYSICAL_DEMAND_CODES },
+  'jobs.accommodations_offered': { codes: ACCOMMODATION_CODES },
+  'jobs.province': { codes: PROVINCE_CODES, scalar: true },
 })
 
-export function addArrayCheck(key: string, codes: readonly string[]) {
+export function addArrayCheck(key: string, check: CatalogCheck | readonly string[]) {
+  const { codes, scalar } = norm(check)!
   const [table, column] = key.split('.')
   const arr = `ARRAY[${codes.map((c) => `'${c}'`).join(', ')}]::text[]`
-  return `ALTER TABLE "${table}" ADD CONSTRAINT "${table}_${column}_valid" CHECK ("${column}" <@ ${arr});`
+  const cond = scalar ? `"${column}" IS NULL OR "${column}" = ANY (${arr})` : `"${column}" <@ ${arr}`
+  return `ALTER TABLE "${table}" ADD CONSTRAINT "${table}_${column}_valid" CHECK (${cond});`
 }
 
 export function dropArrayCheck(key: string) {
@@ -63,8 +72,8 @@ export function dropArrayCheck(key: string) {
 export function arrayCheckDiff(before: ArrayChecks, after: ArrayChecks) {
   const out: string[] = []
   for (const key of new Set([...Object.keys(before), ...Object.keys(after)])) {
-    const a = before[key]
-    const b = after[key]
+    const a = norm(before[key])
+    const b = norm(after[key])
     if (JSON.stringify(a) === JSON.stringify(b)) continue
     if (a) out.push(dropArrayCheck(key))
     if (b) out.push(addArrayCheck(key, b))
@@ -88,6 +97,8 @@ ALTER TABLE "candidates" ADD CONSTRAINT "candidates_phone_format" CHECK ("phone"
 ALTER TABLE "candidates" ADD CONSTRAINT "candidates_disability_percent_range" CHECK ("disability_percent" BETWEEN 1 AND 100);
 ALTER TABLE "phone_verifications" ADD CONSTRAINT "phone_verifications_phone_format" CHECK ("phone" ~ '^09[0-9]{8}$');
 ALTER TABLE "jobs" ADD CONSTRAINT "jobs_compatible_disabilities_not_empty" CHECK (cardinality("compatible_disabilities") > 0);
+ALTER TABLE "jobs" ADD CONSTRAINT "jobs_daily_hours_range" CHECK ("daily_hours" IS NULL OR "daily_hours" BETWEEN 1 AND 24);
+ALTER TABLE "cv_files" ADD CONSTRAINT "cv_files_size_range" CHECK ("size_bytes" BETWEEN 1 AND 10485760);
 ALTER TABLE "jobs" ADD CONSTRAINT "jobs_salary_range" CHECK ("salary_min" IS NULL OR "salary_max" IS NULL OR "salary_min" <= "salary_max");
 ALTER TABLE "applications" ADD CONSTRAINT "applications_match_score_range" CHECK ("match_score" BETWEEN 0 AND 100);
 

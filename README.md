@@ -67,7 +67,7 @@ Reglas: **no edites una migración que ya se aplicó en Supabase**; si hay que c
 
 Qué incluye el esquema:
 
-- **10 tablas y `schema_migrations`.** Las listas son arrays nativos (`text[]`) con un `CHECK` que solo acepta códigos del catálogo, y un índice GIN para los filtros.
+- **11 tablas y `schema_migrations`.** Las listas son arrays nativos (`text[]`) con un `CHECK` que solo acepta códigos del catálogo, y un índice GIN para los filtros.
 - **Enums de Postgres** para los valores fijos: tipo de discapacidad, estudios, estado de la postulación, etc.
 - **RLS activado sin políticas en todas las tablas.** Supabase publica el esquema `public` por su API REST, y aquí hay datos de discapacidad. Con RLS, nadie puede leerlos con las claves `anon` o `authenticated`. El backend entra con el rol `postgres`, que no está sujeto a RLS.
 
@@ -81,20 +81,23 @@ Todas las rutas van bajo `/api`. Con `npm run dev`, la referencia completa con l
 
 | Pantalla (ruta del front) | Endpoint |
 |---|---|
-| Inicio y filtros `/` | `GET /jobs?q&where&accessibleFor&accommodations&modality&schedule&salaryMin&page&pageSize` → `{ total, items }` (`total` es para "Ver N ofertas") |
-| Detalle `/jobs/:jobId` | `GET /jobs/:id` → `{ job, match, applicationId }` (`match` solo con sesión) |
+| Inicio `/` | `GET /stats` → `{ activeJobs, provinces, remoteJobs }` ("1.240 ofertas inclusivas activas · 24 provincias") |
+| Búsqueda y filtros `/` | `GET /jobs?q&where&features&salary&schedule&sort&page&pageSize` → `{ total, sort, facets, items }`. `where` acepta una ciudad o "teletrabajo"; `features` acepta `remote`, `wheelchair`, `screenReader`, `signLanguage` y `flexibleSchedule`; `salary` acepta `470-600`, `600-900` o `900+`; `schedule` acepta `fullTime`, `partTime` o `internship`. `facets` da el conteo de cada filtro, y `sort=compatibility` ("más compatibles") es el orden por defecto con sesión. También se aceptan `accessibleFor`, `accommodations`, `modality` y `salaryMin` |
+| Detalle `/jobs/:jobId` | `GET /jobs/:id` → `{ job, match, applicationId }` (`match` solo con sesión). `job` incluye `description` ("Qué harás"), `accommodationsDetail`, `requirements` ("Qué necesitas"), `salaryBenefits`, `dailyHours` y `easyRead` (lectura fácil por secciones) |
 | Listas de opciones | `GET /catalog`: códigos y etiquetas (habilidades, ajustes, exigencias, estados) |
-| Paso 1 `/signup/id-card` | `POST /id-card/scan` (multipart `front`, `back`; JPG, PNG, HEIC, WEBP o PDF de hasta 10 MB) → `{ scanId, fullName, idNumber, birthDate, disabilityType, disabilityPercent, validity, confidence, needsReview[], idNumberValid }` |
+| Paso 1 `/signup/id-card` | `POST /id-card/scan` (multipart `front`, `back`; JPG, PNG, HEIC, WEBP o PDF de hasta 10 MB) → `{ scanId, fullName, idNumber, birthDate, disabilityType, disabilityPercent, validity, confidence, needsReview[], idNumberValid }`. `validity` puede ser `'AAAA-MM-DD'`, `'indefinite'` ("Indefinida") o `null` |
 | Continuar en el celular | `POST /id-card/handoffs` → `{ token, url, expiresAt }` · `GET /id-card/handoffs/:token` (polling: `waiting`, `partial`, `ready`, `consumed` o `expired`) · `PUT /id-card/handoffs/:token/:side` (celular, multipart `image`) · `GET /id-card/handoffs/:token/:side` (vista previa) · `POST /id-card/handoffs/:token/scan` |
+| Paso 3: hoja de vida | `POST /cv-uploads` (multipart `file`: PDF, Word, JPG o PNG de hasta 10 MB) → `{ cvUploadId }`; se manda en `/signup` |
+| Paso 4: "Así te verá la empresa" | `POST /company-view/preview { contact, experience, privacy, idCard? }` → `{ fullName, headline, accommodationsNeeded, idCardHidden, disability… }`, sin cuenta |
 | Paso 2: verificar celular | `POST /phone-verifications { phone, channel? }` → `{ verificationId, expiresAt }` · `POST /phone-verifications/:id/verify { code }` → `{ verified, usableUntil }` |
-| Pasos 2–4 → enviar | `POST /signup` `{ scanId, idCard, contact, phoneVerificationId, experience, privacy, applyToJobId? }` → `{ token, expiresAt, candidate, applicationId }` |
-| Ingresar `/login` | `POST /auth/code { idNumber }` → 202 · `POST /auth/verify { idNumber, code }` → `{ token, expiresAt, candidate }` · `POST /auth/logout` |
-| Resultados IA `/for-you` | `GET /matches` → `{ threshold, missingAccommodations, recommended[], others[], rejected[] }` |
-| Postular `/applications/:id/sent` | `POST /applications { jobId }` → la postulación |
-| Mis postulaciones `/applications` | `GET /applications` · `GET /applications/:id` (con línea de tiempo) · `POST /applications/:id/withdraw` |
-| Mi perfil (diseño pendiente) | `GET` y `PATCH /me` (un celular nuevo exige `phoneVerificationId`) · `GET /me/company-view` ("Así te verá la empresa") · `GET /me/export` · `DELETE /me` |
+| Pasos 2–4 → enviar | `POST /signup` `{ scanId, idCard, contact, phoneVerificationId, experience, privacy, applyToJobId?, cvUploadId? }` → `{ token, expiresAt, candidate, applicationId }` |
+| Ingresar `/login` | `POST /auth/code { idNumber }` → 202 con `resendAfterSeconds: 45` ("Reenviar en 0:45") · `POST /auth/verify { idNumber, code }` → `{ token, expiresAt, candidate }` · `POST /auth/logout` |
+| Resultados IA `/for-you` | `GET /matches` → `{ firstApplication, recommended[], others[], rejected[], counts: { matching, recommended, totalJobs }, consideredFactors[], profileComplete, missingAccommodations, threshold }` |
+| Postular `/applications/:id/sent` | `POST /applications { jobId }` → la postulación con `nextSteps: { reviewBusinessDays: 5, reviewBy, contactChannel, contactValue }` |
+| Mis postulaciones `/applications` | `GET /applications` (en "No seleccionada" viene `similarCount`) · `GET /applications/:id` (con línea de tiempo) · `POST /applications/:id/confirm-interview` ("Confirmar asistencia") · `GET /applications/:id/similar` (hasta 4 ofertas parecidas) · `POST /applications/:id/withdraw`. La entrevista es `{ at, mode: inPerson, videoCall o phoneCall, place, confirmedAt }` |
+| Mi perfil (diseño pendiente) | `GET` y `PATCH /me` (un celular nuevo exige `phoneVerificationId`) · `GET /me/company-view` ("Así te verá la empresa") · `GET`, `PUT` y `DELETE /me/cv` (hoja de vida) · `GET /me/export` · `DELETE /me` |
 | Voz (respaldo) | `POST /transcribe` (multipart `audio`) → `{ text }` · `POST /tts { text, rate }` → audio |
-| Admin `/admin/jobs` | `GET` y `POST /admin/jobs` · `GET`, `PUT` y `DELETE /admin/jobs/:id` · `POST /admin/jobs/random { count }` · `POST /admin/match { candidate }` · `GET /admin/candidates` · `POST /admin/candidates/random` · `GET /admin/candidates/:id/matches` · `GET /admin/applications` · `PATCH /admin/applications/:id` |
+| Admin `/admin/jobs` | `GET` y `POST /admin/jobs` · `GET`, `PUT` y `DELETE /admin/jobs/:id` · `POST /admin/jobs/random { count }` · `POST /admin/match { candidate }` · `GET /admin/candidates` · `POST /admin/candidates/random` · `GET /admin/candidates/:id/matches` · `GET /admin/applications` · `PATCH /admin/applications/:id { status, interviewAt, interviewMode, interviewPlace }` |
 
 Los cuerpos de `idCard`, `contact`, `experience` y `privacy` tienen **la misma forma que `useSignupStore` del front**, y `privacy` agrega `keepIdCardImages`. `GET /me` devuelve el perfil con esa misma forma.
 
@@ -110,6 +113,7 @@ El ejemplo del documento está cubierto por pruebas: el desarrollador backend sa
 
 ## Privacidad (LOPDP)
 
+- La **hoja de vida se guarda cifrada**. Si nadie la vincula a un registro en 2 horas, se borra.
 - Las **fotos del carnet se guardan cifradas** con AES-256-GCM (`ID_CARD_ENCRYPTION_KEY`). Se borran al confirmar el registro, salvo que la persona acepte guardarlas. Los escaneos sin confirmar se borran a las 2 horas, y los traspasos al celular, a los 10 minutos.
 - **Cada consentimiento queda registrado** en `consent_records` con la fecha, la versión de la política, la IP y el navegador. También se registra cada cambio posterior.
 - **La empresa nunca ve el carnet ni la cédula.** El tipo y el porcentaje de discapacidad solo los ve si la persona desactiva "solo ajustes". `/me/company-view` muestra exactamente eso.
@@ -126,7 +130,7 @@ El ejemplo del documento está cubierto por pruebas: el desarrollador backend sa
 
 1. Crea el proyecto en Supabase, en la región más cercana (por ejemplo `us-east-1`). Guarda la contraseña de la base.
 2. Crea las tablas de **una** de estas formas:
-   - **SQL Editor:** pega `database/migrations/0001_init.sql` → Run. Si después hay más migraciones, pégalas en orden. También sirve `database/schema.sql` en una base vacía: equivale a todas las migraciones juntas.
+   - **SQL Editor:** pega `database/migrations/0001_init.sql` → Run, y después `0002_ajustes_mockups.sql` y las siguientes, en orden. También sirve `database/schema.sql` en una base vacía: equivale a todas las migraciones juntas.
    - **Terminal:** completa `DIRECT_URL` en `.env` y ejecuta `npm run db:migrate`.
 3. Revisa que quedó bien: en *Table Editor* deben aparecer las tablas con el candado de RLS, y `SELECT * FROM schema_migrations;` debe listar las migraciones aplicadas.
 4. Busca las cadenas de conexión en **Connect** (o *Project Settings → Database*) y pásalas por un canal privado, nunca en el repositorio:
@@ -205,6 +209,8 @@ Nunca debe recibir la cédula ni el porcentaje de discapacidad.
 ---
 
 ## Pendiente o por acordar
+
+- **Elementos que no aparecen en los mockups** y que se mantienen hasta que el equipo decida: soporte de WEBP en el carnet; el campo `tasks` y el texto libre `easyReadSummary` de las ofertas (este último reemplazado por `easyRead`); los estados `hired` y `withdrawn` y la ruta para retirar una postulación; la opción `keepIdCardImages` del paso 4; los datos de contacto y las habilidades en "Así te verá la empresa"; y, en el admin, editar ofertas y mover postulaciones.
 
 - **OCR real:** ver "Servicio de IA".
 - **Lista de ajustes y tabla de choques:** el front tiene un TODO para acordarla. Está centralizada en `catalog.ts`.

@@ -102,7 +102,7 @@ const reject = (jobId: string, reason: string): Match => ({
   breakdown: { disability: 0, accommodations: 0, experience: 0, education: 0 },
 })
 
-const demandLabel = (d: string) => labelOf(PHYSICAL_DEMANDS, d)
+const demandPhrase = (d: string) => PHYSICAL_DEMANDS.find((x) => x.value === d)?.phrase ?? d
 const accommodation = (a: string) => ACCOMMODATIONS.find((o) => o.value === a)
 
 /** Primer ajuste necesario que choca con una exigencia del puesto, o null. */
@@ -123,7 +123,7 @@ export function scoreJob(c: MatchCandidate, j: MatchJob): Match {
     return reject(j.id, 'Tipo de discapacidad no compatible')
   }
   const clash = findClash(c.accommodationsNeeded, j)
-  if (clash) return reject(j.id, `El puesto exige ${demandLabel(clash.demand)}`)
+  if (clash) return reject(j.id, `El puesto exige ${demandPhrase(clash.demand)}`)
 
   const reasons: string[] = []
   const warnings: string[] = []
@@ -149,6 +149,7 @@ export function scoreJob(c: MatchCandidate, j: MatchJob): Match {
       warnings.push(`No dice si tiene ${accommodation(a)!.label.toLowerCase()}: pregúntalo antes de postular`)
     }
   }
+  if (j.modality === 'remote') reasons.push('Trabajas desde tu casa')
   if (c.otherAccommodation?.trim()) {
     warnings.push(`Pregunta si pueden darte: ${c.otherAccommodation.trim()}`)
   }

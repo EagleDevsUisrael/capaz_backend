@@ -18,6 +18,8 @@ import { adminRoutes } from './modules/admin.js'
 import { applicationRoutes } from './modules/applications.js'
 import { authRoutes } from './modules/auth.js'
 import { catalogRoutes } from './modules/catalog.js'
+import { companyViewRoutes } from './modules/companyView.js'
+import { cvRoutes } from './modules/cv.js'
 import { idCardRoutes } from './modules/idCard.js'
 import { jobRoutes } from './modules/jobs.js'
 import { matchRoutes } from './modules/matches.js'
@@ -153,6 +155,8 @@ export async function buildApp(opts: { db: Db; config: Env; services?: Partial<S
       await api.register(jobRoutes)
       await api.register(idCardRoutes)
       await api.register(phoneRoutes)
+      await api.register(cvRoutes)
+      await api.register(companyViewRoutes)
       await api.register(signupRoutes)
       await api.register(authRoutes)
       await api.register(meRoutes)

@@ -21,8 +21,8 @@ export interface IdCardFields {
   birthDate: string | null
   disabilityType: DisabilityType | null
   disabilityPercent: number | null
-  /** AAAA-MM-DD, o null si es indefinida o no se leyó */
-  validity: string | null
+  /** AAAA-MM-DD, 'indefinite' si el carnet dice "Indefinida", o null si no se leyó */
+  validity: string | 'indefinite' | null
 }
 
 export type IdCardConfidence = Record<keyof IdCardFields, number>
@@ -63,7 +63,7 @@ export class MockOcrProvider implements OcrProvider {
         birthDate: s.birthDate,
         disabilityType: s.disabilityType,
         disabilityPercent: s.disabilityPercent,
-        validity: null,
+        validity: 'indefinite',
       },
       confidence: {
         fullName: 0.97,
@@ -71,7 +71,7 @@ export class MockOcrProvider implements OcrProvider {
         birthDate: 0.92,
         disabilityType: 0.9,
         disabilityPercent: 0.62,
-        validity: 0.4,
+        validity: 0.9,
       },
     }
   }
