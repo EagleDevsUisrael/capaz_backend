@@ -1,0 +1,42 @@
+{
+  "candidates.skills": [
+    "customerService",
+    "computing",
+    "excel",
+    "sales",
+    "cooking",
+    "crafts",
+    "english"
+  ],
+  "candidates.accommodations_needed": [
+    "seated",
+    "ramp",
+    "flexibleSchedule",
+    "adaptedKeyboard",
+    "screenReader",
+    "signLanguage"
+  ],
+  "jobs.compatible_disabilities": [
+    "physical",
+    "visual",
+    "hearing",
+    "intellectual",
+    "psychosocial"
+  ],
+  "jobs.physical_demands": [
+    "bothHands",
+    "standing",
+    "walkingDriving",
+    "seeScreen",
+    "phoneSpeaking",
+    "hearing"
+  ],
+  "jobs.accommodations_offered": [
+    "seated",
+    "ramp",
+    "flexibleSchedule",
+    "adaptedKeyboard",
+    "screenReader",
+    "signLanguage"
+  ]
+}

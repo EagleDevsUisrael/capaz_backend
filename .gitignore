@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+# Cliente de Prisma generado (se regenera con `npm install` / `npm run db:generate`)
+src/generated/
