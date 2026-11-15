@@ -225,9 +225,10 @@ export function buildSchemaSql() {
 -- ARCHIVO GENERADO (npm run db:sql). No lo edites a mano: cambia prisma/schema.prisma o
 -- src/domain/catalog.ts y crea una migración con \`npm run db:migration -- <nombre>\`.
 --
--- Úsalo SOLO para una base vacía: Supabase → SQL Editor → pegar todo → Run.
--- Equivale a aplicar todas las migraciones de database/migrations/ en orden, y las deja
--- registradas como aplicadas. Para una base que ya existe, aplica solo las migraciones nuevas.
+-- Es SOLO DE REFERENCIA: muestra el estado completo de la base. Para crear o actualizar la base,
+-- aplica las migraciones de database/migrations/ en orden (npm run db:migrate o el SQL Editor),
+-- así schema_migrations siempre dice cuáles están aplicadas. Ver HANDOFF.md.
+-- Una prueba comprueba que las migraciones en orden dan exactamente este estado.
 -- ============================================================================
 
 BEGIN;

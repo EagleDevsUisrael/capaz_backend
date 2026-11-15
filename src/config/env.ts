@@ -25,7 +25,7 @@ const schema = z.object({
   /** URL pública del front, para armar el enlace del QR "Continuar en el celular" */
   PUBLIC_WEB_URL: z.string().default('http://localhost:5173'),
 
-  /** Clave AES-256 en base64 para cifrar las fotos del carnet: `openssl rand -base64 32` */
+  /** Clave AES-256 en base64 para cifrar las fotos del carnet y la hoja de vida (ver .env.example) */
   ID_CARD_ENCRYPTION_KEY: z.string().min(1, 'Falta ID_CARD_ENCRYPTION_KEY (ver .env.example)'),
 
   /** Token del admin de demostración (cabecera `Authorization: Bearer <token>` en /api/admin/*) */
