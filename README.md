@@ -1,6 +1,8 @@
 # capaz_backend
 
 API de **Capaz**, una plataforma para que personas con discapacidad en Ecuador encuentren empleo y postulen (ODS 10).
+**¿Vas a integrarlo o modificarlo? Empieza por [HANDOFF.md](HANDOFF.md).**
+
 Implementa lo que pide la *Documentación de diseño y técnica* (11 nov 2026) para el MVP:
 registro en 4 pasos con OCR del carnet y verificación del celular, ingreso sin contraseña,
 motor de match con razones, postulaciones, respaldos de voz y admin de demostración.
@@ -35,7 +37,7 @@ npm run dev                  # http://localhost:3000 · documentación interacti
 prisma/schema.prisma          modelo (tablas, enums, índices, relaciones)
 src/domain/catalog.ts         códigos válidos de las listas (habilidades, ajustes…) → CHECK de los arrays
 database/migrations/          0001_init.sql, 0002_….sql… → cambios incrementales, en orden
-database/schema.sql           estado completo, para crear una base vacía de una vez (generado)
+database/schema.sql           estado completo, solo de referencia; la base se crea con las migraciones (generado)
 database/.snapshot/           cómo quedó el modelo en la última migración (no se edita)
 ```
 
@@ -130,7 +132,7 @@ El ejemplo del documento está cubierto por pruebas: el desarrollador backend sa
 
 1. Crea el proyecto en Supabase, en la región más cercana (por ejemplo `us-east-1`). Guarda la contraseña de la base.
 2. Crea las tablas de **una** de estas formas:
-   - **SQL Editor:** pega `database/migrations/0001_init.sql` → Run, y después `0002_ajustes_mockups.sql` y las siguientes, en orden. También sirve `database/schema.sql` en una base vacía: equivale a todas las migraciones juntas.
+   - **SQL Editor:** pega `database/migrations/0001_init.sql` → Run, y después `0002_ajustes_mockups.sql` y las siguientes, en orden. No uses `database/schema.sql` para crear la base: aplicando las migraciones, `schema_migrations` siempre dice cuáles están aplicadas (ver [HANDOFF.md](HANDOFF.md)).
    - **Terminal:** completa `DIRECT_URL` en `.env` y ejecuta `npm run db:migrate`.
 3. Revisa que quedó bien: en *Table Editor* deben aparecer las tablas con el candado de RLS, y `SELECT * FROM schema_migrations;` debe listar las migraciones aplicadas.
 4. Busca las cadenas de conexión en **Connect** (o *Project Settings → Database*) y pásalas por un canal privado, nunca en el repositorio:
