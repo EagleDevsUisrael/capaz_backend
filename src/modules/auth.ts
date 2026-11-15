@@ -16,7 +16,9 @@ import { cedula } from './schemas.js'
 
 export const CODE_TTL_MS = 10 * 60 * 1000
 export const MAX_ATTEMPTS = 5
-const RESEND_AFTER_MS = 60 * 1000
+/** "¿No llegó? Reenviar en 0:45" */
+export const RESEND_AFTER_SECONDS = 45
+const RESEND_AFTER_MS = RESEND_AFTER_SECONDS * 1000
 const MAX_CODES_PER_HOUR = 5
 
 /** El hash del código incluye el id de la persona: dos personas con el mismo código no comparten hash. */
@@ -38,6 +40,7 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
     async (req, reply) => {
       const generic = {
         message: 'Si tu cédula está registrada, te enviamos un código de 4 dígitos. Vence en 10 minutos.',
+        resendAfterSeconds: RESEND_AFTER_SECONDS,
       }
       const c = await app.db.candidate.findUnique({
         where: { idNumber: req.body.idNumber },
@@ -52,7 +55,7 @@ export const authRoutes: FastifyPluginAsyncZod = async (app) => {
       })
       if (recent.length >= MAX_CODES_PER_HOUR) throw tooMany('Pediste muchos códigos. Espera una hora e inténtalo otra vez.')
       if (recent[0] && Date.now() - recent[0].createdAt.getTime() < RESEND_AFTER_MS) {
-        throw tooMany('Ya te enviamos un código. Espera un minuto antes de pedir otro.')
+        throw tooMany(`Ya te enviamos un código. Espera ${RESEND_AFTER_SECONDS} segundos antes de pedir otro.`)
       }
 
       const channel = req.body.channel ?? (c.contactPreference === 'whatsapp' ? 'whatsapp' : 'sms')

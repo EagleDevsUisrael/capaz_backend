@@ -71,6 +71,53 @@
           },
           {
             "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "remote",
+                  "wheelchair",
+                  "screenReader",
+                  "signLanguage",
+                  "flexibleSchedule"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "features",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "470-600",
+                "600-900",
+                "900+"
+              ]
+            },
+            "in": "query",
+            "name": "salary",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "fullTime",
+                  "partTime",
+                  "internship"
+                ]
+              }
+            },
+            "in": "query",
+            "name": "schedule",
+            "required": false
+          },
+          {
+            "schema": {
               "type": "string",
               "enum": [
                 "physical",
@@ -121,27 +168,24 @@
           },
           {
             "schema": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "fullTime",
-                  "partTime"
-                ]
-              }
-            },
-            "in": "query",
-            "name": "schedule",
-            "required": false
-          },
-          {
-            "schema": {
               "type": "integer",
               "minimum": 0,
               "maximum": 9007199254740991
             },
             "in": "query",
             "name": "salaryMin",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "compatibility",
+                "recent"
+              ]
+            },
+            "in": "query",
+            "name": "sort",
             "required": false
           },
           {
@@ -165,6 +209,12 @@
             "in": "query",
             "name": "pageSize",
             "required": false
+          }
+        ],
+        "security": [
+          {},
+          {
+            "session": []
           }
         ],
         "responses": {
@@ -196,6 +246,18 @@
           {
             "session": []
           }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/stats": {
+      "get": {
+        "tags": [
+          "ofertas"
         ],
         "responses": {
           "200": {
@@ -428,6 +490,226 @@
         }
       }
     },
+    "/api/cv-uploads": {
+      "post": {
+        "tags": [
+          "registro"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/me/cv": {
+      "get": {
+        "tags": [
+          "perfil"
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "perfil"
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "perfil"
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/company-view/preview": {
+      "post": {
+        "tags": [
+          "registro"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "contact": {
+                    "type": "object",
+                    "properties": {
+                      "fullName": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 120
+                      },
+                      "city": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 80
+                      },
+                      "phone": {
+                        "type": "string",
+                        "maxLength": 10
+                      },
+                      "email": {
+                        "type": "string",
+                        "maxLength": 160
+                      },
+                      "preferred": {
+                        "type": "string",
+                        "maxLength": 20
+                      }
+                    },
+                    "required": [
+                      "fullName",
+                      "city"
+                    ]
+                  },
+                  "experience": {
+                    "type": "object",
+                    "properties": {
+                      "hasWorked": {
+                        "default": null,
+                        "nullable": true,
+                        "type": "string",
+                        "enum": [
+                          "yes",
+                          "no"
+                        ]
+                      },
+                      "experienceText": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 4000
+                      },
+                      "cvFileName": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "education": {
+                        "default": null,
+                        "nullable": true,
+                        "type": "string",
+                        "enum": [
+                          "primary",
+                          "highSchool",
+                          "technical",
+                          "university"
+                        ]
+                      },
+                      "skills": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "customerService",
+                            "computing",
+                            "excel",
+                            "sales",
+                            "cooking",
+                            "crafts",
+                            "english"
+                          ]
+                        }
+                      },
+                      "accommodationsNeeded": {
+                        "maxItems": 20,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "seated",
+                            "ramp",
+                            "flexibleSchedule",
+                            "adaptedKeyboard",
+                            "screenReader",
+                            "signLanguage"
+                          ]
+                        }
+                      },
+                      "otherAccommodation": {
+                        "default": "",
+                        "type": "string",
+                        "maxLength": 500
+                      }
+                    }
+                  },
+                  "privacy": {
+                    "type": "object",
+                    "properties": {
+                      "shareOnlyAccommodations": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "shareOnlyAccommodations"
+                    ]
+                  },
+                  "idCard": {
+                    "type": "object",
+                    "properties": {
+                      "disabilityType": {
+                        "type": "string",
+                        "enum": [
+                          "physical",
+                          "visual",
+                          "hearing",
+                          "intellectual",
+                          "psychosocial"
+                        ]
+                      },
+                      "disabilityPercent": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "contact",
+                  "privacy"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/signup": {
       "post": {
         "tags": [
@@ -479,9 +761,19 @@
                       },
                       "validity": {
                         "nullable": true,
-                        "type": "string",
-                        "format": "date",
-                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "indefinite"
+                            ]
+                          }
+                        ]
                       }
                     },
                     "required": [
@@ -636,6 +928,12 @@
                     ]
                   },
                   "applyToJobId": {
+                    "nullable": true,
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  "cvUploadId": {
                     "nullable": true,
                     "type": "string",
                     "format": "uuid",
@@ -1060,6 +1358,64 @@
         }
       }
     },
+    "/api/applications/{id}/confirm-interview": {
+      "post": {
+        "tags": [
+          "postulaciones"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/api/applications/{id}/similar": {
+      "get": {
+        "tags": [
+          "postulaciones"
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
     "/api/applications/{id}/withdraw": {
       "post": {
         "tags": [
@@ -1210,7 +1566,8 @@
                     "type": "string",
                     "enum": [
                       "fullTime",
-                      "partTime"
+                      "partTime",
+                      "internship"
                     ]
                   },
                   "salaryMin": {
@@ -1227,20 +1584,53 @@
                     "minimum": 0,
                     "maximum": 9007199254740991
                   },
+                  "province": {
+                    "default": null,
+                    "nullable": true,
+                    "type": "string",
+                    "enum": [
+                      "azuay",
+                      "bolivar",
+                      "canar",
+                      "carchi",
+                      "chimborazo",
+                      "cotopaxi",
+                      "elOro",
+                      "esmeraldas",
+                      "galapagos",
+                      "guayas",
+                      "imbabura",
+                      "loja",
+                      "losRios",
+                      "manabi",
+                      "moronaSantiago",
+                      "napo",
+                      "orellana",
+                      "pastaza",
+                      "pichincha",
+                      "santaElena",
+                      "santoDomingo",
+                      "sucumbios",
+                      "tungurahua",
+                      "zamoraChinchipe"
+                    ]
+                  },
+                  "dailyHours": {
+                    "default": null,
+                    "nullable": true,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 24
+                  },
+                  "summary": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 300
+                  },
                   "description": {
                     "default": "",
                     "type": "string",
                     "maxLength": 4000
-                  },
-                  "tasks": {
-                    "default": [],
-                    "maxItems": 20,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 300
-                    }
                   },
                   "requirements": {
                     "default": [],
@@ -1252,10 +1642,85 @@
                       "maxLength": 300
                     }
                   },
-                  "easyReadSummary": {
+                  "accommodationsDetail": {
+                    "default": [],
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    }
+                  },
+                  "salaryBenefits": {
                     "default": "",
                     "type": "string",
-                    "maxLength": 2000
+                    "maxLength": 1000
+                  },
+                  "easyRead": {
+                    "default": null,
+                    "nullable": true,
+                    "type": "object",
+                    "properties": {
+                      "jobTitle": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "whatYouDo": {
+                        "default": [],
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      },
+                      "whereAndWhen": {
+                        "default": [],
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      },
+                      "pay": {
+                        "default": [],
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      },
+                      "whatYouGet": {
+                        "default": [],
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      },
+                      "whatYouNeed": {
+                        "default": [],
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      }
+                    },
+                    "required": [
+                      "jobTitle"
+                    ]
                   },
                   "compatibleDisabilities": {
                     "maxItems": 20,
@@ -1417,7 +1882,8 @@
                     "type": "string",
                     "enum": [
                       "fullTime",
-                      "partTime"
+                      "partTime",
+                      "internship"
                     ]
                   },
                   "salaryMin": {
@@ -1434,20 +1900,53 @@
                     "minimum": 0,
                     "maximum": 9007199254740991
                   },
+                  "province": {
+                    "default": null,
+                    "nullable": true,
+                    "type": "string",
+                    "enum": [
+                      "azuay",
+                      "bolivar",
+                      "canar",
+                      "carchi",
+                      "chimborazo",
+                      "cotopaxi",
+                      "elOro",
+                      "esmeraldas",
+                      "galapagos",
+                      "guayas",
+                      "imbabura",
+                      "loja",
+                      "losRios",
+                      "manabi",
+                      "moronaSantiago",
+                      "napo",
+                      "orellana",
+                      "pastaza",
+                      "pichincha",
+                      "santaElena",
+                      "santoDomingo",
+                      "sucumbios",
+                      "tungurahua",
+                      "zamoraChinchipe"
+                    ]
+                  },
+                  "dailyHours": {
+                    "default": null,
+                    "nullable": true,
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 24
+                  },
+                  "summary": {
+                    "default": "",
+                    "type": "string",
+                    "maxLength": 300
+                  },
                   "description": {
                     "default": "",
                     "type": "string",
                     "maxLength": 4000
-                  },
-                  "tasks": {
-                    "default": [],
-                    "maxItems": 20,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 300
-                    }
                   },
                   "requirements": {
                     "default": [],
@@ -1459,10 +1958,85 @@
                       "maxLength": 300
                     }
                   },
-                  "easyReadSummary": {
+                  "accommodationsDetail": {
+                    "default": [],
+                    "maxItems": 20,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    }
+                  },
+                  "salaryBenefits": {
                     "default": "",
                     "type": "string",
-                    "maxLength": 2000
+                    "maxLength": 1000
+                  },
+                  "easyRead": {
+                    "default": null,
+                    "nullable": true,
+                    "type": "object",
+                    "properties": {
+                      "jobTitle": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                      },
+                      "whatYouDo": {
+                        "default": [],
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      },
+                      "whereAndWhen": {
+                        "default": [],
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      },
+                      "pay": {
+                        "default": [],
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      },
+                      "whatYouGet": {
+                        "default": [],
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      },
+                      "whatYouNeed": {
+                        "default": [],
+                        "maxItems": 8,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 120
+                        }
+                      }
+                    },
+                    "required": [
+                      "jobTitle"
+                    ]
                   },
                   "compatibleDisabilities": {
                     "maxItems": 20,
@@ -1886,6 +2460,15 @@
                     "type": "string",
                     "format": "date-time",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  },
+                  "interviewMode": {
+                    "nullable": true,
+                    "type": "string",
+                    "enum": [
+                      "inPerson",
+                      "videoCall",
+                      "phoneCall"
+                    ]
                   },
                   "interviewPlace": {
                     "nullable": true,

@@ -34,6 +34,34 @@ describe('base de datos', () => {
     expect(da.migrations).toHaveLength(migrations.length)
   })
 
+  it('0002 se aplica sobre una base con datos de la 0001 (sin tocar las fotos guardadas ni los consentimientos)', async () => {
+    const db = new PGlite()
+    await db.exec(readFileSync(new URL('0001_init.sql', dir), 'utf8'))
+    await db.exec(`
+      INSERT INTO candidates (id, id_number, full_name, disability_type, disability_percent, phone, phone_verified_at, email, city, consent_at)
+      VALUES ('00000000-0000-0000-0000-000000000001', '1710034065', 'Prueba', 'physical', 50, '0991234567', now(), 'p@e.ec', 'Quito', now());
+      INSERT INTO consent_records (candidate_id, purpose, granted, policy_version)
+      VALUES ('00000000-0000-0000-0000-000000000001', 'keepIdCardImages', true, 'v1'),
+             ('00000000-0000-0000-0000-000000000001', 'useProfile', true, 'v1');
+      INSERT INTO id_card_scans (candidate_id, status, front_image, front_mime, back_image, back_mime, extracted, confidence, ocr_provider, expires_at)
+      VALUES ('00000000-0000-0000-0000-000000000001', 'confirmed', '\\x01', 'image/jpeg', '\\x02', 'image/jpeg', '{}', '{}', 'mock', now());
+      INSERT INTO jobs (title, company, city, modality, schedule, compatible_disabilities, tasks, easy_read_summary)
+      VALUES ('Oferta', 'Empresa', 'Quito', 'remote', 'fullTime', '{physical}', '{tarea}', 'texto');
+    `)
+    await db.exec(readFileSync(new URL('0002_ajustes_mockups.sql', dir), 'utf8'))
+    const consents = (await db.query<{ purpose: string }>('SELECT purpose FROM consent_records')).rows
+    // La opción "guardar las fotos del carnet" se mantiene: sus datos no se tocan
+    expect(consents.map((c) => c.purpose).sort()).toEqual(['keepIdCardImages', 'useProfile'])
+    const scan = (await db.query<{ front_image: unknown }>('SELECT front_image FROM id_card_scans')).rows[0]
+    expect(scan?.front_image).not.toBeNull()
+    const cols = (await db.query<{ column_name: string }>(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'jobs'",
+    )).rows.map((r) => r.column_name)
+    expect(cols).not.toContain('tasks')
+    expect(cols).not.toContain('easy_read_summary')
+    expect(cols).toContain('easy_read')
+  })
+
   it('una migración no se aplica dos veces', async () => {
     const db = new PGlite()
     const first = readFileSync(new URL(migrations[0]!, dir), 'utf8')

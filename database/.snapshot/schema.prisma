@@ -58,6 +58,7 @@ enum JobModality {
 enum JobSchedule {
   fullTime
   partTime
+  internship
 
   @@map("job_schedule")
 }
@@ -72,6 +73,14 @@ enum ApplicationStatus {
   withdrawn
 
   @@map("application_status")
+}
+
+enum InterviewMode {
+  inPerson
+  videoCall
+  phoneCall
+
+  @@map("interview_mode")
 }
 
 enum IdCardScanStatus {
@@ -110,13 +119,15 @@ model Candidate {
   id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
 
   // Paso 1: carnet (datos sensibles; la empresa no los ve sin autorización)
-  idNumber          String         @unique @map("id_number") @db.VarChar(10)
-  fullName          String         @map("full_name")
-  birthDate         DateTime?      @map("birth_date") @db.Date
-  disabilityType    DisabilityType @map("disability_type")
-  disabilityPercent Int            @map("disability_percent") @db.SmallInt
-  /// Vigencia del carnet. null = indefinida o no indicada.
-  idCardValidUntil  DateTime?      @map("id_card_valid_until") @db.Date
+  idNumber                String         @unique @map("id_number") @db.VarChar(10)
+  fullName                String         @map("full_name")
+  birthDate               DateTime?      @map("birth_date") @db.Date
+  disabilityType          DisabilityType @map("disability_type")
+  disabilityPercent       Int            @map("disability_percent") @db.SmallInt
+  /// Vigencia del carnet. null = indefinida o no indicada (ver idCardValidIndefinitely).
+  idCardValidUntil        DateTime?      @map("id_card_valid_until") @db.Date
+  /// El carnet dice "Indefinida"
+  idCardValidIndefinitely Boolean        @default(false) @map("id_card_valid_indefinitely")
 
   // Paso 2: contacto
   /// Nombre con el que la persona quiere que la llamen (paso 2). El nombre legal es fullName.
@@ -131,6 +142,7 @@ model Candidate {
   // Paso 3: experiencia y ajustes (opcional)
   hasWorked            Boolean?        @map("has_worked")
   experienceText       String          @default("") @map("experience_text")
+  /// Nombre del archivo de la hoja de vida (el archivo está en cv_files)
   cvFileName           String?         @map("cv_file_name")
   education            EducationLevel?
   skills               String[]        @default([])
@@ -152,6 +164,7 @@ model Candidate {
   loginCodes   LoginCode[]
   sessions     Session[]
   applications Application[]
+  cvFile       CvFile?
 
   @@index([disabilityType])
   @@map("candidates")
@@ -273,23 +286,53 @@ model Session {
   @@map("sessions")
 }
 
+/// Hoja de vida (paso 3, opcional). Se sube antes de crear la cuenta y se vincula al registrarse.
+/// Se guarda cifrada (AES-256-GCM). Si nadie la vincula antes de expires_at, se borra.
+model CvFile {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId String?   @unique @map("candidate_id") @db.Uuid
+  fileName    String    @map("file_name")
+  mime        String
+  sizeBytes   Int       @map("size_bytes")
+  data        Bytes
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  /// null cuando ya está vinculada a una persona
+  expiresAt   DateTime? @map("expires_at") @db.Timestamptz(6)
+
+  candidate Candidate? @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@map("cv_files")
+}
+
 // ─── Ofertas (las carga el admin de demostración) ───────────────────────────
 
 model Job {
-  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title           String
-  company         String
-  city            String
-  modality        JobModality
-  schedule        JobSchedule
-  salaryMin       Int?        @map("salary_min")
-  salaryMax       Int?        @map("salary_max")
-  description     String      @default("")
-  /// "Qué harás": una tarea por elemento
-  tasks           String[]    @default([])
-  requirements    String[]    @default([])
-  /// Resumen en lectura fácil, escrito a mano por el admin
-  easyReadSummary String      @default("") @map("easy_read_summary")
+  id                   String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title                String
+  company              String
+  city                 String
+  modality             JobModality
+  schedule             JobSchedule
+  salaryMin            Int?        @map("salary_min")
+  salaryMax            Int?        @map("salary_max")
+  /// Provincia (para el conteo del inicio). null = todo el país (teletrabajo).
+  province             String?
+  /// Horas por día ("8 h")
+  dailyHours           Int?        @map("daily_hours") @db.SmallInt
+  /// Texto corto de la tarjeta de la lista
+  summary              String      @default("")
+  /// "Qué harás"
+  description          String      @default("")
+  /// "Qué necesitas": un requisito por elemento
+  requirements         String[]    @default([])
+  /// "Ajustes que ofrece la empresa" en detalle: "Computadora con lector de pantalla JAWS y NVDA", …
+  accommodationsDetail String[]    @default([]) @map("accommodations_detail")
+  /// "Salario y beneficios"
+  salaryBenefits       String      @default("") @map("salary_benefits")
+  /// Lectura fácil por secciones, escrita a mano por el admin:
+  /// { jobTitle, whatYouDo[], whereAndWhen[], pay[], whatYouGet[], whatYouNeed[] }
+  easyRead             Json?       @map("easy_read")
 
   // Datos que usa el motor de match
   compatibleDisabilities String[]        @default([]) @map("compatible_disabilities")
@@ -313,16 +356,20 @@ model Job {
 // ─── Postulaciones ──────────────────────────────────────────────────────────
 
 model Application {
-  id             String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  candidateId    String            @map("candidate_id") @db.Uuid
-  jobId          String            @map("job_id") @db.Uuid
-  status         ApplicationStatus @default(sent)
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  candidateId          String            @map("candidate_id") @db.Uuid
+  jobId                String            @map("job_id") @db.Uuid
+  status               ApplicationStatus @default(sent)
   /// Compatibilidad calculada al postular (0 a 100)
-  matchScore     Int               @map("match_score") @db.SmallInt
-  interviewAt    DateTime?         @map("interview_at") @db.Timestamptz(6)
-  interviewPlace String?           @map("interview_place")
-  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  matchScore           Int               @map("match_score") @db.SmallInt
+  interviewAt          DateTime?         @map("interview_at") @db.Timestamptz(6)
+  interviewMode        InterviewMode?    @map("interview_mode")
+  /// Detalle: dirección, enlace o "con intérprete si lo necesitas"
+  interviewPlace       String?           @map("interview_place")
+  /// "Confirmar asistencia"
+  interviewConfirmedAt DateTime?         @map("interview_confirmed_at") @db.Timestamptz(6)
+  createdAt            DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   candidate Candidate          @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   job       Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)

@@ -18,6 +18,7 @@ import {
   EDUCATION_LEVELS,
   labelOf,
   PHYSICAL_DEMANDS,
+  SKILLS,
   type Accommodation,
   type EducationLevel,
   type PhysicalDemand,
@@ -28,6 +29,8 @@ export const WEIGHTS = { disability: 40, accommodations: 30, experience: 25, edu
 
 export interface MatchCandidate {
   disabilityType: string
+  /** true = ya trabajó ("como en tu último trabajo"); false = sería su primer empleo */
+  hasWorked?: boolean | null
   disabilityPercent: number
   city?: string | null
   experienceText?: string | null
@@ -91,6 +94,22 @@ function sameWord(a: string, b: string) {
   return i >= 6
 }
 
+/** "a", "a y b", "a, b y c" */
+const joinEs = (xs: string[]) => (xs.length <= 1 ? (xs[0] ?? '') : `${xs.slice(0, -1).join(', ')} y ${xs.at(-1)}`)
+
+/**
+ * Cómo se nombra una palabra clave en una razón: con la etiqueta de la habilidad si es una
+ * ("atencion" → "atención al cliente", "excel" → "Excel"); si no, la palabra tal como la escribió el admin.
+ */
+function keywordLabel(normalizedKeyword: string, original: string[]) {
+  const skill = Object.entries(SKILL_TERMS).find(([, terms]) => terms.includes(normalizedKeyword))?.[0]
+  if (skill) {
+    const label = labelOf(SKILLS, skill)
+    return label === 'Excel' ? label : label.toLowerCase()
+  }
+  return original.find((k) => normalize(k).trim() === normalizedKeyword) ?? normalizedKeyword
+}
+
 const reject = (jobId: string, reason: string): Match => ({
   jobId,
   score: 0,
@@ -102,7 +121,7 @@ const reject = (jobId: string, reason: string): Match => ({
   breakdown: { disability: 0, accommodations: 0, experience: 0, education: 0 },
 })
 
-const demandLabel = (d: string) => labelOf(PHYSICAL_DEMANDS, d)
+const demandPhrase = (d: string) => PHYSICAL_DEMANDS.find((x) => x.value === d)?.phrase ?? d
 const accommodation = (a: string) => ACCOMMODATIONS.find((o) => o.value === a)
 
 /** Primer ajuste necesario que choca con una exigencia del puesto, o null. */
@@ -123,7 +142,7 @@ export function scoreJob(c: MatchCandidate, j: MatchJob): Match {
     return reject(j.id, 'Tipo de discapacidad no compatible')
   }
   const clash = findClash(c.accommodationsNeeded, j)
-  if (clash) return reject(j.id, `El puesto exige ${demandLabel(clash.demand)}`)
+  if (clash) return reject(j.id, `El puesto exige ${demandPhrase(clash.demand)}`)
 
   const reasons: string[] = []
   const warnings: string[] = []
@@ -144,10 +163,16 @@ export function scoreJob(c: MatchCandidate, j: MatchJob): Match {
   } else {
     const covered = needed.filter((a) => j.accommodationsOffered.includes(a))
     accommodations = Math.round((WEIGHTS.accommodations * covered.length) / needed.length)
-    for (const a of covered) reasons.push(accommodation(a)!.offeredReason)
+    for (const a of covered) {
+      // "Trabajo sentado, desde casa" cuando además es teletrabajo
+      reasons.push(a === 'seated' && j.modality === 'remote' ? 'Trabajo sentado, desde casa' : accommodation(a)!.offeredReason)
+    }
     for (const a of needed.filter((x) => !covered.includes(x))) {
       warnings.push(`No dice si tiene ${accommodation(a)!.label.toLowerCase()}: pregúntalo antes de postular`)
     }
+  }
+  if (j.modality === 'remote' && !(needed.includes('seated') && j.accommodationsOffered.includes('seated'))) {
+    reasons.push('Trabajo desde casa')
   }
   if (c.otherAccommodation?.trim()) {
     warnings.push(`Pregunta si pueden darte: ${c.otherAccommodation.trim()}`)
@@ -166,7 +191,9 @@ export function scoreJob(c: MatchCandidate, j: MatchJob): Match {
     const needed = Math.min(keywords.length, 4)
     experience = Math.round(WEIGHTS.experience * Math.min(1, matched.length / needed))
     if (matched.length > 0) {
-      reasons.push(`Tu experiencia coincide con lo que buscan: ${matched.slice(0, 3).join(', ')}`)
+      const list = joinEs([...new Set(matched.map((k) => keywordLabel(k, j.keywords)))].slice(0, 3))
+      // Sin género: "Usas Excel, como en tu último trabajo" / "Sabes de ventas, que es lo que buscan"
+      reasons.push(c.hasWorked ? `Usas ${list}, como en tu último trabajo` : `Sabes de ${list}, que es lo que buscan`)
     } else if (!c.experienceText?.trim() && c.skills.length === 0) {
       warnings.push('Cuéntanos tu experiencia para saber si el puesto encaja contigo')
     }

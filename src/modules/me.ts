@@ -94,6 +94,7 @@ export const meRoutes: FastifyPluginAsyncZod = async (app) => {
       include: {
         consents: { orderBy: { createdAt: 'asc' } },
         applications: { include: { job: true, events: { orderBy: { createdAt: 'asc' } } } },
+        cvFile: { select: { fileName: true, mime: true, sizeBytes: true, createdAt: true } },
         idCardScans: { select: { id: true, status: true, createdAt: true, confirmedAt: true, frontImage: true, ocrProvider: true } },
       },
     })
@@ -107,7 +108,10 @@ export const meRoutes: FastifyPluginAsyncZod = async (app) => {
         policyVersion: x.policyVersion,
         at: x.createdAt.toISOString(),
       })),
-      applications: c.applications.map(applicationDto),
+      applications: c.applications.map((a) => applicationDto(a)),
+      cv: c.cvFile
+        ? { fileName: c.cvFile.fileName, mime: c.cvFile.mime, sizeBytes: c.cvFile.sizeBytes, uploadedAt: c.cvFile.createdAt.toISOString(), download: '/api/me/cv' }
+        : null,
       idCardScans: c.idCardScans.map((s) => ({
         status: s.status,
         ocrProvider: s.ocrProvider,

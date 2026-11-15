@@ -74,6 +74,87 @@ describe('API de Capaz (flujo completo)', () => {
     expect(d.json()).toMatchObject({ match: null, applicationId: null })
   })
 
+  it('inicio: búsqueda, filtros con conteo, rangos de salario, pasantía y estadísticas', async () => {
+    const base = (await inject({ url: '/api/jobs' })).json()
+    expect(base.sort).toBe('recent')
+    expect(Object.keys(base.facets.features)).toEqual(['remote', 'wheelchair', 'screenReader', 'signLanguage', 'flexibleSchedule'])
+    expect(Object.keys(base.facets.salary)).toEqual(['470-600', '600-900', '900+'])
+    expect(Object.keys(base.facets.schedule)).toEqual(['fullTime', 'partTime', 'internship'])
+
+    // Cada conteo coincide con lo que da aplicar ese filtro
+    for (const [f, n] of Object.entries(base.facets.features)) {
+      expect((await inject({ url: `/api/jobs?features=${f}` })).json().total, f).toBe(n)
+    }
+    const two = (await inject({ url: '/api/jobs?features=remote,screenReader' })).json()
+    for (const j of two.items) {
+      expect(j.modality).toBe('remote')
+      expect(j.accommodationsOffered).toContain('screenReader')
+    }
+    expect(two.facets.features.remote).toBe(two.total) // ya elegido: no cambia
+
+    const high = (await inject({ url: '/api/jobs?salary=900%2B' })).json()
+    expect(high.total).toBe(base.facets.salary['900+'])
+    for (const j of high.items) expect(j.salaryMax ?? j.salaryMin).toBeGreaterThan(900)
+
+    const intern = (await inject({ url: '/api/jobs?schedule=internship' })).json()
+    expect(intern.total).toBeGreaterThan(0)
+    expect(intern.items.every((j: { schedule: string }) => j.schedule === 'internship')).toBe(true)
+
+    // "¿Dónde?": "teletrabajo" = solo remotas; una ciudad incluye las remotas
+    const tele = (await inject({ url: '/api/jobs?where=Teletrabajo&pageSize=100' })).json()
+    expect(tele.items.every((j: { modality: string }) => j.modality === 'remote')).toBe(true)
+    const cuenca = (await inject({ url: '/api/jobs?where=Cuenca&pageSize=100' })).json()
+    expect(cuenca.items.every((j: { city: string; modality: string }) => j.city === 'Cuenca' || j.modality === 'remote')).toBe(true)
+
+    const d = (await inject({ url: `/api/jobs/${jobIds['Agente de atención telefónica']}` })).json().job
+    expect(d).toMatchObject({ dailyHours: 8, province: 'guayas', schedule: 'fullTime' })
+    expect(d.accommodationsDetail).toContain('Computadora con lector de pantalla JAWS y NVDA')
+    expect(d.easyRead.whatYouDo).toContain('Contestas llamadas de clientes.')
+    expect(d.salaryBenefits).toMatch(/IESS/)
+
+    const stats = (await inject({ url: '/api/stats' })).json()
+    expect(stats.activeJobs).toBe(base.total)
+    expect(stats.provinces).toBeGreaterThan(0)
+    expect(stats.provinces).toBeLessThanOrEqual(24)
+  })
+
+  it('"Así te verá la empresa" antes de crear la cuenta', async () => {
+    const r = await inject({
+      method: 'POST',
+      url: '/api/company-view/preview',
+      payload: {
+        contact: { fullName: 'María Fernanda Torres', city: 'Guayaquil', phone: '0998765432', email: 'mafer@ejemplo.ec', preferred: 'whatsapp' },
+        experience: {
+          hasWorked: 'yes',
+          experienceText: 'Trabajé dos años en un call center atendiendo reclamos de clientes. Manejo Excel básico.',
+          education: 'highSchool',
+          skills: ['customerService', 'excel'],
+          accommodationsNeeded: ['seated', 'flexibleSchedule', 'adaptedKeyboard'],
+        },
+        privacy: { shareOnlyAccommodations: true },
+        idCard: { disabilityType: 'physical', disabilityPercent: 65 },
+      },
+    })
+    expect(r.statusCode, r.body).toBe(200)
+    expect(r.json()).toMatchObject({
+      fullName: 'María Fernanda Torres',
+      headline: 'Guayaquil · Bachillerato · Trabajé dos años en un call center atendiendo reclamos de clientes',
+      accommodationsNeeded: ['seated', 'flexibleSchedule', 'adaptedKeyboard'],
+      idCardHidden: true,
+      disabilityHidden: true,
+      disability: null,
+      // Con contacto y habilidades
+      skills: ['customerService', 'excel'],
+      contact: { phone: '0998765432', email: 'mafer@ejemplo.ec', preferred: 'whatsapp' },
+    })
+    const shared = await inject({
+      method: 'POST',
+      url: '/api/company-view/preview',
+      payload: { contact: { fullName: 'Ana', city: 'Loja' }, privacy: { shareOnlyAccommodations: false }, idCard: { disabilityType: 'visual', disabilityPercent: 50 } },
+    })
+    expect(shared.json().disability).toEqual({ type: 'visual', percent: 50 })
+  })
+
   it('traspaso al celular: QR, subida desde el celular y OCR', async () => {
     const h = await inject({ method: 'POST', url: '/api/id-card/handoffs' })
     expect(h.statusCode).toBe(201)
@@ -128,10 +209,19 @@ describe('API de Capaz (flujo completo)', () => {
     expect(devCode).toMatch(/^\d{4}$/)
     expect((await inject({ method: 'POST', url: '/api/phone-verifications', payload: { phone: '0998765432' } })).statusCode).toBe(429)
 
+    // Hoja de vida opcional (paso 3)
+    const pdf = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.from('cv de prueba')])
+    const notCv = await inject({ method: 'POST', url: '/api/cv-uploads', ...multipart({ file: { data: Buffer.from('hola'), filename: 'x.txt', type: 'text/plain' } }) })
+    expect(notCv.json().error.code).toBe('UNSUPPORTED_FILE')
+    const cvUp = await inject({ method: 'POST', url: '/api/cv-uploads', ...multipart({ file: { data: pdf, filename: 'mi-cv.pdf', type: 'application/pdf' } }) })
+    expect(cvUp.statusCode, cvUp.body).toBe(201)
+    const { cvUploadId } = cvUp.json()
+
     const body = {
       scanId: s.scanId,
+      cvUploadId,
       phoneVerificationId: verificationId,
-      idCard: { fullName: s.fullName, idNumber: s.idNumber, birthDate: s.birthDate, disabilityType: 'physical', disabilityPercent: 70, validity: null },
+      idCard: { fullName: s.fullName, idNumber: s.idNumber, birthDate: s.birthDate, disabilityType: 'physical', disabilityPercent: 70, validity: 'indefinite' },
       contact: { fullName: 'Mafer Torres', phone: '0998765432', email: 'Mafer.Torres@gmail.com', city: 'Quito', preferred: 'whatsapp' },
       experience: {
         hasWorked: 'yes',
@@ -173,6 +263,11 @@ describe('API de Capaz (flujo completo)', () => {
     expect(out.candidate.contact).toMatchObject({ fullName: 'Mafer Torres', email: 'mafer.torres@gmail.com' })
     expect(out.candidate.privacy.consentAt).toBeTruthy()
     expect(out.candidate.contact.phoneVerifiedAt).toBeTruthy()
+    expect(out.candidate.idCard.validity).toBe('indefinite')
+    expect(out.candidate.experience.cvFileName).toBe('mi-cv.pdf')
+    const cvFile = await inject({ url: '/api/me/cv', headers: bearer(out.token) })
+    expect(cvFile.headers['content-type']).toBe('application/pdf')
+    expect(cvFile.rawPayload.equals(pdf)).toBe(true) // se guardó cifrada y se descifra igual
     // La verificación ya se usó
     const used = await t.db.phoneVerification.findUniqueOrThrow({ where: { id: verificationId } })
     expect(used.consumedAt).not.toBeNull()
@@ -190,9 +285,27 @@ describe('API de Capaz (flujo completo)', () => {
   it('recomendaciones /for-you', async () => {
     expect((await inject({ url: '/api/matches' })).statusCode).toBe(401)
     const m = (await inject({ url: '/api/matches', headers: bearer(token) })).json()
-    const dev = m.recommended.find((x: { job: { title: string } }) => x.job.title === 'Desarrollador backend')
-    expect(dev.match.score).toBeGreaterThanOrEqual(90)
+    // "La oferta a la que postulaste": la del registro, fuera de la lista de recomendadas
+    expect(m.firstApplication.job.title).toBe('Desarrollador backend')
+    expect(m.firstApplication.match.score).toBeGreaterThanOrEqual(90)
+    expect(m.firstApplication.match.reasons).toContain('Trabajo sentado, desde casa')
+    // (por id: "Generar 10 ofertas al azar" puede crear otra oferta con el mismo título)
+    expect(m.firstApplication.job.id).toBe(jobIds['Desarrollador backend'])
+    expect(m.recommended.some((x: { job: { id: string } }) => x.job.id === jobIds['Desarrollador backend'])).toBe(false)
     expect(m.rejected.some((x: { job: { title: string } }) => x.job.title === 'Conductor profesional')).toBe(true)
+    expect(m.counts.totalJobs).toBe(SEED_JOBS.length + 10)
+    expect(m.counts.matching).toBe(m.counts.recommended + 1)
+    expect(m.consideredFactors).toEqual(['Trabajo sentado', 'Computación', 'Quito o remoto'])
+    expect(m.profileComplete).toBe(true)
+
+    // "Ordenar: más compatibles" (por defecto con sesión)
+    const sorted = (await inject({ url: '/api/jobs?pageSize=100', headers: bearer(token) })).json()
+    expect(sorted.sort).toBe('compatibility')
+    const scores = sorted.items.map((j: { match: { score: number } }) => j.match.score)
+    expect(scores).toEqual([...scores].sort((a, b) => b - a))
+    const recent = (await inject({ url: '/api/jobs?sort=recent', headers: bearer(token) })).json()
+    expect(recent.sort).toBe('recent')
+    expect(recent.items[0].match).not.toBeNull()
 
     const d = (await inject({ url: `/api/jobs/${jobIds['Desarrollador backend']}`, headers: bearer(token) })).json()
     expect(d.match.recommended).toBe(true)
@@ -204,22 +317,48 @@ describe('API de Capaz (flujo completo)', () => {
     const a = await inject({ method: 'POST', url: '/api/applications', headers: bearer(token), payload: { jobId } })
     expect(a.statusCode, a.body).toBe(201)
     expect(a.json()).toMatchObject({ status: 'sent', stage: 1, statusLabel: 'Enviada' })
+    // "La empresa revisa tu perfil en 5 días hábiles. Te contactará por WhatsApp al 099…"
+    expect(a.json().nextSteps).toMatchObject({ reviewBusinessDays: 5, contactChannel: 'whatsapp', contactValue: '0998765432' })
+    expect(a.json().nextSteps.reviewBy).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     const dup = await inject({ method: 'POST', url: '/api/applications', headers: bearer(token), payload: { jobId } })
     expect(dup.json().error.code).toBe('ALREADY_APPLIED')
 
     const list = (await inject({ url: '/api/applications', headers: bearer(token) })).json()
     expect(list.items).toHaveLength(2)
 
+    const notYet = await inject({ method: 'POST', url: `/api/applications/${a.json().id}/confirm-interview`, headers: bearer(token) })
+    expect(notYet.json().error.code).toBe('NO_INTERVIEW')
+
+    const nextWeek = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString()
     const p = await inject({
       method: 'PATCH',
       url: `/api/admin/applications/${a.json().id}`,
       headers: admin,
-      payload: { status: 'interview', interviewAt: '2026-11-20T15:00:00-05:00', interviewPlace: 'Videollamada' },
+      payload: { status: 'interview', interviewAt: nextWeek, interviewMode: 'videoCall', interviewPlace: 'Con intérprete si lo necesitas' },
     })
-    expect(p.json()).toMatchObject({ stage: 3, interview: { place: 'Videollamada' } })
+    expect(p.json()).toMatchObject({ stage: 3, interview: { mode: 'videoCall', confirmedAt: null } })
+
+    // "Confirmar asistencia"
+    const conf = await inject({ method: 'POST', url: `/api/applications/${a.json().id}/confirm-interview`, headers: bearer(token) })
+    expect(conf.statusCode, conf.body).toBe(200)
+    expect(conf.json().interview.confirmedAt).toBeTruthy()
 
     const detail = (await inject({ url: `/api/applications/${a.json().id}`, headers: bearer(token) })).json()
-    expect(detail.events.map((e: { status: string }) => e.status)).toEqual(['sent', 'interview'])
+    expect(detail.events.map((e: { status: string }) => e.status)).toEqual(['sent', 'interview', 'interview'])
+
+    // "No seleccionada" -> ofertas parecidas
+    await inject({ method: 'PATCH', url: `/api/admin/applications/${a.json().id}`, headers: admin, payload: { status: 'notSelected' } })
+    const mine = (await inject({ url: '/api/applications', headers: bearer(token) })).json()
+    const ns = mine.items.find((x: { id: string }) => x.id === a.json().id)
+    expect(ns).toMatchObject({ status: 'notSelected', statusLabel: 'No seleccionada' })
+    expect(ns.similarCount).toBeGreaterThan(0)
+    const similar = (await inject({ url: `/api/applications/${a.json().id}/similar`, headers: bearer(token) })).json()
+    expect(similar.items.length).toBe(ns.similarCount)
+    expect(similar.items.length).toBeLessThanOrEqual(4)
+    for (const x of similar.items) {
+      expect(x.match.rejected).toBe(false)
+      expect(x.job.id).not.toBe(jobId)
+    }
 
     const w = await inject({ method: 'POST', url: `/api/applications/${a.json().id}/withdraw`, headers: bearer(token) })
     expect(w.json().status).toBe('withdrawn')
@@ -248,6 +387,7 @@ describe('API de Capaz (flujo completo)', () => {
   it('perfil: vista de la empresa, cambio de privacidad registrado y exportación', async () => {
     const cv = (await inject({ url: '/api/me/company-view', headers: bearer(token) })).json()
     expect(cv.disability).toBeNull()
+    expect(cv.contact.phone).toBeTruthy()
     expect(JSON.stringify(cv)).not.toContain(idNumber)
 
     const p = await inject({ method: 'PATCH', url: '/api/me', headers: bearer(token), payload: { privacy: { shareOnlyAccommodations: false } } })
@@ -267,6 +407,7 @@ describe('API de Capaz (flujo completo)', () => {
 
     const r = await inject({ method: 'POST', url: '/api/auth/code', payload: { idNumber } })
     expect(r.statusCode).toBe(202)
+    expect(r.json().resendAfterSeconds).toBe(45) // "¿No llegó? Reenviar en 0:45"
     const code = r.json().devCode as string
     expect(code).toMatch(/^\d{4}$/)
 

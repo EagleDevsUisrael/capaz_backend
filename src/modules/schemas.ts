@@ -1,13 +1,18 @@
 /** Esquemas zod compartidos por las rutas (validan la entrada y documentan la API en /docs). */
 import { z } from 'zod'
+import { Prisma } from '../generated/prisma/client.js'
 import {
   ACCOMMODATION_CODES,
   CONTACT_PREFERENCE_CODES,
   DISABILITY_TYPE_CODES,
   EDUCATION_LEVEL_CODES,
+  INTERVIEW_MODE_CODES,
+  JOB_FEATURE_CODES,
   JOB_MODALITY_CODES,
   JOB_SCHEDULE_CODES,
   PHYSICAL_DEMAND_CODES,
+  PROVINCE_CODES,
+  SALARY_RANGE_CODES,
   SKILL_CODES,
 } from '../domain/catalog.js'
 import { isValidCedula } from '../domain/cedula.js'
@@ -38,6 +43,13 @@ export const physicalDemands = uniq(z.enum(PHYSICAL_DEMAND_CODES))
 export const disabilityTypes = uniq(z.enum(DISABILITY_TYPE_CODES))
 export const jobModality = z.enum(JOB_MODALITY_CODES)
 export const jobSchedule = z.enum(JOB_SCHEDULE_CODES)
+export const jobFeature = z.enum(JOB_FEATURE_CODES)
+export const salaryRange = z.enum(SALARY_RANGE_CODES)
+export const province = z.enum(PROVINCE_CODES)
+export const interviewMode = z.enum(INTERVIEW_MODE_CODES)
+
+/** Vigencia del carnet: fecha, "indefinite" (el carnet dice "Indefinida") o null (no se leyó). */
+export const validity = z.union([isoDate, z.literal('indefinite')]).nullable()
 
 /** Paso 1 confirmado por la persona (puede corregir lo que leyó el OCR). */
 export const idCardData = z.object({
@@ -46,7 +58,7 @@ export const idCardData = z.object({
   birthDate: isoDate.nullable(),
   disabilityType,
   disabilityPercent: z.number().int().min(1).max(100),
-  validity: isoDate.nullable(),
+  validity,
 })
 
 /** Celular ecuatoriano: 09 + 8 dígitos */
@@ -82,6 +94,18 @@ export const privacyData = z.object({
   keepIdCardImages: z.boolean().default(false),
 })
 
+/** Lectura fácil por secciones (pantalla "Detalle de oferta (Lectura fácil)"): frases cortas, una idea por línea. */
+const easyLines = z.array(z.string().trim().min(1).max(120)).max(8).default([])
+export const easyRead = z.object({
+  /** "Trabajo: atender llamadas" */
+  jobTitle: z.string().trim().min(1).max(80),
+  whatYouDo: easyLines,
+  whereAndWhen: easyLines,
+  pay: easyLines,
+  whatYouGet: easyLines,
+  whatYouNeed: easyLines,
+})
+
 export const jobInput = z
   .object({
     title: z.string().trim().min(3).max(120),
@@ -91,10 +115,21 @@ export const jobInput = z
     schedule: jobSchedule,
     salaryMin: z.number().int().nonnegative().nullable().default(null),
     salaryMax: z.number().int().nonnegative().nullable().default(null),
+    /** null = todo el país (teletrabajo) */
+    province: province.nullable().default(null),
+    /** Horas por día ("8 h") */
+    dailyHours: z.number().int().min(1).max(24).nullable().default(null),
+    /** Texto corto de la tarjeta de la lista */
+    summary: z.string().max(300).default(''),
+    /** "Qué harás" */
     description: z.string().max(4000).default(''),
-    tasks: z.array(z.string().trim().min(1).max(300)).max(20).default([]),
+    /** "Qué necesitas" */
     requirements: z.array(z.string().trim().min(1).max(300)).max(20).default([]),
-    easyReadSummary: z.string().max(2000).default(''),
+    /** "Ajustes que ofrece la empresa" en detalle */
+    accommodationsDetail: z.array(z.string().trim().min(1).max(300)).max(20).default([]),
+    /** "Salario y beneficios" */
+    salaryBenefits: z.string().max(1000).default(''),
+    easyRead: easyRead.nullable().default(null),
     compatibleDisabilities: disabilityTypes.refine((a) => a.length > 0, {
       error: 'Marca al menos un tipo de discapacidad compatible',
     }),
@@ -110,6 +145,9 @@ export const jobInput = z
   })
 
 export type JobInput = z.output<typeof jobInput>
+
+/** Para Prisma: un JSON null se guarda como NULL de SQL. */
+export const toJobData = (j: JobInput) => ({ ...j, easyRead: j.easyRead ?? Prisma.DbNull })
 
 /** "a,b,c" o ["a","b"] en la query → array */
 export const csv = <T extends z.ZodType>(item: T) =>

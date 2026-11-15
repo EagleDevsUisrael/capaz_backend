@@ -46,11 +46,14 @@ export const SKILLS = [
 export const SKILL_CODES = codes(SKILLS)
 export type Skill = (typeof SKILL_CODES)[number]
 
-/** Ajustes: los marca la persona (accommodationsNeeded) y los ofrece la empresa (accommodationsOffered). */
+/**
+ * Ajustes: los marca la persona (accommodationsNeeded) y los ofrece la empresa (accommodationsOffered).
+ * `offeredReason` es la razón de "Por qué encaja contigo": siempre en forma neutra, sin género.
+ */
 export const ACCOMMODATIONS = [
-  { value: 'seated', label: 'Trabajo sentado', offeredReason: 'Puedes trabajar sentado' },
+  { value: 'seated', label: 'Trabajo sentado', offeredReason: 'Trabajo sentado' },
   { value: 'ramp', label: 'Rampa o ascensor', offeredReason: 'Tiene rampa o ascensor' },
-  { value: 'flexibleSchedule', label: 'Horario flexible', offeredReason: 'Te dan horario flexible' },
+  { value: 'flexibleSchedule', label: 'Horario flexible', offeredReason: 'Horario flexible, como pediste' },
   { value: 'adaptedKeyboard', label: 'Teclado adaptado', offeredReason: 'Te dan el teclado adaptado que pediste' },
   { value: 'screenReader', label: 'Lector de pantalla', offeredReason: 'Tienen lector de pantalla' },
   { value: 'signLanguage', label: 'Intérprete de señas', offeredReason: 'Tienen intérprete de lengua de señas' },
@@ -58,14 +61,17 @@ export const ACCOMMODATIONS = [
 export const ACCOMMODATION_CODES = codes(ACCOMMODATIONS)
 export type Accommodation = (typeof ACCOMMODATION_CODES)[number]
 
-/** Exigencias físicas del puesto (las marca el admin en la oferta). */
+/**
+ * Exigencias físicas del puesto (las marca el admin en la oferta: "Lo que exige el puesto").
+ * `label` es el texto del mockup; `phrase` completa la frase "El puesto exige …".
+ */
 export const PHYSICAL_DEMANDS = [
-  { value: 'bothHands', label: 'usar las dos manos' },
-  { value: 'standing', label: 'estar de pie' },
-  { value: 'walkingDriving', label: 'caminar o manejar' },
-  { value: 'seeScreen', label: 'ver la pantalla' },
-  { value: 'phoneSpeaking', label: 'hablar por teléfono' },
-  { value: 'hearing', label: 'escuchar' },
+  { value: 'bothHands', label: 'Usar ambas manos', phrase: 'usar ambas manos' },
+  { value: 'standing', label: 'Estar de pie', phrase: 'estar de pie' },
+  { value: 'walkingDriving', label: 'Caminar / conducir', phrase: 'caminar o conducir' },
+  { value: 'seeScreen', label: 'Ver pantalla', phrase: 'ver la pantalla' },
+  { value: 'phoneSpeaking', label: 'Hablar por teléfono', phrase: 'hablar por teléfono' },
+  { value: 'hearing', label: 'Oír', phrase: 'oír' },
 ] as const
 export const PHYSICAL_DEMAND_CODES = codes(PHYSICAL_DEMANDS)
 export type PhysicalDemand = (typeof PHYSICAL_DEMAND_CODES)[number]
@@ -80,8 +86,71 @@ export const JOB_MODALITY_CODES = codes(JOB_MODALITIES)
 export const JOB_SCHEDULES = [
   { value: 'fullTime', label: 'Tiempo completo' },
   { value: 'partTime', label: 'Medio tiempo' },
+  { value: 'internship', label: 'Pasantía' },
 ] as const
 export const JOB_SCHEDULE_CODES = codes(JOB_SCHEDULES)
+
+/** Las 24 provincias del Ecuador (para el conteo "N provincias" del inicio). */
+export const PROVINCES = [
+  { value: 'azuay', label: 'Azuay' },
+  { value: 'bolivar', label: 'Bolívar' },
+  { value: 'canar', label: 'Cañar' },
+  { value: 'carchi', label: 'Carchi' },
+  { value: 'chimborazo', label: 'Chimborazo' },
+  { value: 'cotopaxi', label: 'Cotopaxi' },
+  { value: 'elOro', label: 'El Oro' },
+  { value: 'esmeraldas', label: 'Esmeraldas' },
+  { value: 'galapagos', label: 'Galápagos' },
+  { value: 'guayas', label: 'Guayas' },
+  { value: 'imbabura', label: 'Imbabura' },
+  { value: 'loja', label: 'Loja' },
+  { value: 'losRios', label: 'Los Ríos' },
+  { value: 'manabi', label: 'Manabí' },
+  { value: 'moronaSantiago', label: 'Morona Santiago' },
+  { value: 'napo', label: 'Napo' },
+  { value: 'orellana', label: 'Orellana' },
+  { value: 'pastaza', label: 'Pastaza' },
+  { value: 'pichincha', label: 'Pichincha' },
+  { value: 'santaElena', label: 'Santa Elena' },
+  { value: 'santoDomingo', label: 'Santo Domingo de los Tsáchilas' },
+  { value: 'sucumbios', label: 'Sucumbíos' },
+  { value: 'tungurahua', label: 'Tungurahua' },
+  { value: 'zamoraChinchipe', label: 'Zamora Chinchipe' },
+] as const
+export const PROVINCE_CODES = codes(PROVINCES)
+
+/**
+ * Filtros "Accesibilidad del puesto" del inicio. Cada uno se traduce a una condición sobre la oferta.
+ * (Son atajos para el front; el filtro `accommodations` sigue aceptando cualquier ajuste.)
+ */
+export const JOB_FEATURES = [
+  { value: 'remote', label: 'Teletrabajo desde casa' },
+  { value: 'wheelchair', label: 'Acceso en silla de ruedas', accommodation: 'ramp' },
+  { value: 'screenReader', label: 'Compatible con lector de pantalla', accommodation: 'screenReader' },
+  { value: 'signLanguage', label: 'Equipo con lengua de señas', accommodation: 'signLanguage' },
+  { value: 'flexibleSchedule', label: 'Horario flexible', accommodation: 'flexibleSchedule' },
+] as const
+export const JOB_FEATURE_CODES = codes(JOB_FEATURES)
+export type JobFeature = (typeof JOB_FEATURE_CODES)[number]
+
+/** Rangos de "Salario mensual" (USD). `max: null` = sin tope. */
+export const SALARY_RANGES = [
+  { value: '470-600', label: '$470 – $600', min: 470, max: 600 },
+  { value: '600-900', label: '$600 – $900', min: 600, max: 900 },
+  { value: '900+', label: 'Más de $900', min: 900, max: null },
+] as const
+export const SALARY_RANGE_CODES = codes(SALARY_RANGES)
+export type SalaryRange = (typeof SALARY_RANGE_CODES)[number]
+
+export const INTERVIEW_MODES = [
+  { value: 'inPerson', label: 'Presencial' },
+  { value: 'videoCall', label: 'Videollamada' },
+  { value: 'phoneCall', label: 'Llamada telefónica' },
+] as const
+export const INTERVIEW_MODE_CODES = codes(INTERVIEW_MODES)
+
+/** "La empresa revisa tu perfil en los próximos N días hábiles" (pantalla Postulación enviada). */
+export const REVIEW_BUSINESS_DAYS = 5
 
 export const APPLICATION_STATUSES = [
   { value: 'sent', label: 'Enviada', stage: 1 },
@@ -101,7 +170,7 @@ export type ApplicationStatus = (typeof APPLICATION_STATUS_CODES)[number]
  * TODO(equipo): validar esta tabla con personas con discapacidad y con empresas.
  */
 export const CLASHES: Partial<Record<Accommodation, readonly PhysicalDemand[]>> = {
-  seated: ['standing', 'walkingDriving'],
+  seated: ['walkingDriving', 'standing'],
   screenReader: ['seeScreen'],
   signLanguage: ['phoneSpeaking', 'hearing'],
   adaptedKeyboard: ['bothHands'],
@@ -121,5 +190,9 @@ export const CATALOG = {
   physicalDemands: PHYSICAL_DEMANDS,
   jobModalities: JOB_MODALITIES,
   jobSchedules: JOB_SCHEDULES,
+  jobFeatures: JOB_FEATURES.map(({ value, label }) => ({ value, label })),
+  salaryRanges: SALARY_RANGES,
+  provinces: PROVINCES,
+  interviewModes: INTERVIEW_MODES,
   applicationStatuses: APPLICATION_STATUSES,
 }

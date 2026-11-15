@@ -21,6 +21,32 @@ export function sniffMime(b: Buffer): string | null {
   return null
 }
 
+/** Hoja de vida: PDF, Word (.doc/.docx), JPG o PNG. */
+export function sniffCvMime(b: Buffer): string | null {
+  const m = sniffMime(b)
+  if (m === 'application/pdf' || m === 'image/jpeg' || m === 'image/png') return m
+  if (b.length >= 8 && b.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]))) {
+    return 'application/msword'
+  }
+  // .docx es un ZIP que contiene word/document.xml
+  if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04 && b.includes('word/')) {
+    return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  }
+  return null
+}
+
+export function requireCv(files: UploadedFile[]) {
+  const f = files.find((x) => x.field === 'file')
+  if (!f || f.data.length === 0) throw badRequest('MISSING_FILE', 'Falta el archivo de la hoja de vida.', { file: 'Falta el archivo' })
+  const mime = sniffCvMime(f.data)
+  if (!mime) {
+    throw unprocessable('UNSUPPORTED_FILE', 'La hoja de vida debe ser PDF, Word, JPG o PNG.', { file: 'Formato no admitido' })
+  }
+  // Sin separadores de ruta, saltos de línea ni comillas (el nombre va en Content-Disposition)
+  const fileName = (f.filename || 'hoja-de-vida').replace(/[\\/\r\n"]/g, '_').slice(0, 200)
+  return { data: f.data, mime, fileName }
+}
+
 const AUDIO_PREFIXES = ['audio/']
 
 /** Lee los archivos de un multipart/form-data (los campos de texto se devuelven aparte). */

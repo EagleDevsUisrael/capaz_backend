@@ -24,13 +24,26 @@ describe('motor de match (ejemplo del documento)', () => {
     expect(m.rejected).toBe(false)
     expect(m.score).toBeGreaterThanOrEqual(90)
     expect(m.recommended).toBe(true)
-    expect(m.reasons).toContain('Puedes trabajar sentado')
+    expect(m.reasons).toContain('Trabajo sentado, desde casa')
+    expect(m.reasons.some((r) => r.startsWith('Sabes de '))).toBe(true)
+  })
+
+  it('las razones no tienen género', () => {
+    const c = { ...DEMO_CANDIDATE, hasWorked: true, skills: ['excel'], accommodationsNeeded: ['seated', 'adaptedKeyboard'] }
+    const office = scoreJob(c, job('Analista de datos junior'))
+    expect(office.reasons).toContain('Trabajo sentado')
+    expect(office.reasons).toContain('Usas Excel, como en tu último trabajo')
+    const phone = scoreJob({ ...c, disabilityType: 'visual' }, job('Agente de atención telefónica'))
+    expect(phone.reasons).toContain('Te dan el teclado adaptado que pediste')
+    const all = [office, phone, scoreJob(DEMO_CANDIDATE, job('Desarrollador backend'))].flatMap((m) => [...m.reasons, ...m.warnings])
+    // "Trabajo sentado" describe el trabajo; lo que no debe aparecer es un adjetivo sobre la persona
+    expect(all.join(' ')).not.toMatch(/\b(trabajas sentad[oa]|trabajar sentad[oa]|sentada|cansad[oa]|preparad[oa]|interesad[oa]|bienvenid[oa])\b/i)
   })
 
   it('Conductor profesional: seated choca con walkingDriving → descartado (0 %)', () => {
     const m = scoreJob(DEMO_CANDIDATE, job('Conductor profesional'))
     expect(m).toMatchObject({ rejected: true, score: 0, recommended: false })
-    expect(m.rejectReason).toMatch(/^El puesto exige/)
+    expect(m.rejectReason).toBe('El puesto exige caminar o conducir') // mockup: "descartado: exige caminar/conducir"
   })
 
   it('descarta si el tipo de discapacidad no es compatible', () => {

@@ -3,6 +3,7 @@
  * salvo que se pase --force (borra las ofertas de demostración y vuelve a cargarlas).
  */
 import { createPrisma } from '../lib/prisma.js'
+import { toJobData } from '../modules/schemas.js'
 import { SEED_JOBS } from './demoData.js'
 
 const db = createPrisma()
@@ -14,7 +15,7 @@ try {
     console.log(`Ya hay ${count} ofertas; no se cargó nada. Usa --force para recargar las de demostración.`)
   } else {
     if (force) await db.job.deleteMany({ where: { isDemo: true } })
-    await db.job.createMany({ data: SEED_JOBS.map((j) => ({ ...j, isDemo: true })) })
+    await db.job.createMany({ data: SEED_JOBS.map((j) => ({ ...toJobData(j), isDemo: true })) })
     console.log(`Se cargaron ${SEED_JOBS.length} ofertas de ejemplo.`)
   }
 } finally {
