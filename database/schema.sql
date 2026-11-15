@@ -38,7 +38,7 @@ CREATE TYPE "id_card_scan_status" AS ENUM ('pending', 'confirmed');
 CREATE TYPE "code_channel" AS ENUM ('whatsapp', 'sms');
 
 -- CreateEnum
-CREATE TYPE "consent_purpose" AS ENUM ('useProfile', 'shareOnlyAccommodations', 'discoverable');
+CREATE TYPE "consent_purpose" AS ENUM ('useProfile', 'shareOnlyAccommodations', 'discoverable', 'keepIdCardImages');
 
 -- CreateTable
 CREATE TABLE "candidates" (

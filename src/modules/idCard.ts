@@ -9,7 +9,7 @@
  *   POST /api/id-card/handoffs/:token/scan         la computadora pide el OCR con las fotos del celular
  *
  * Las fotos se guardan cifradas. Las de los traspasos se borran al pedir el OCR; las del escaneo,
- * al confirmar el registro.
+ * al confirmar el registro (salvo que la persona acepte guardarlas).
  */
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { z } from 'zod'

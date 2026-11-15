@@ -128,34 +128,31 @@ describe('API de Capaz (flujo completo)', () => {
           hasWorked: 'yes',
           experienceText: 'Trabajé dos años en un call center atendiendo reclamos de clientes. Manejo Excel básico.',
           education: 'highSchool',
+          skills: ['customerService', 'excel'],
           accommodationsNeeded: ['seated', 'flexibleSchedule', 'adaptedKeyboard'],
         },
-        privacy: { shareOnlyAccommodations: true, discoverable: true },
+        privacy: { shareOnlyAccommodations: true },
         idCard: { disabilityType: 'physical', disabilityPercent: 65 },
       },
     })
     expect(r.statusCode, r.body).toBe(200)
-    const common = {
+    expect(r.json()).toMatchObject({
       fullName: 'María Fernanda Torres',
       headline: 'Guayaquil · Bachillerato · Trabajé dos años en un call center atendiendo reclamos de clientes',
       accommodationsNeeded: ['seated', 'flexibleSchedule', 'adaptedKeyboard'],
       idCardHidden: true,
       disabilityHidden: true,
       disability: null,
-    }
-    // Empresa a la que postuló: ve el contacto
-    expect(r.json().applied).toMatchObject({ ...common, audience: 'applied', contactHidden: false, contact: { phone: '0998765432', email: 'mafer@ejemplo.ec' } })
-    // Empresa que la encontró sin postular: sin contacto
-    expect(r.json().discovered).toMatchObject({ ...common, audience: 'discovered', contactHidden: true, contact: null })
-    expect(JSON.stringify(r.json().discovered)).not.toContain('0998765432')
-
+      // Con contacto y habilidades
+      skills: ['customerService', 'excel'],
+      contact: { phone: '0998765432', email: 'mafer@ejemplo.ec', preferred: 'whatsapp' },
+    })
     const shared = await inject({
       method: 'POST',
       url: '/api/company-view/preview',
       payload: { contact: { fullName: 'Ana', city: 'Loja' }, privacy: { shareOnlyAccommodations: false }, idCard: { disabilityType: 'visual', disabilityPercent: 50 } },
     })
-    expect(shared.json().applied.disability).toEqual({ type: 'visual', percent: 50 })
-    expect(shared.json().discovered).toBeNull() // no activó "Que las empresas me encuentren"
+    expect(shared.json().disability).toEqual({ type: 'visual', percent: 50 })
   })
 
   it('traspaso al celular: QR, subida desde el celular y OCR', async () => {
@@ -279,7 +276,7 @@ describe('API de Capaz (flujo completo)', () => {
     const stored = await t.db.idCardScan.findUniqueOrThrow({ where: { id: s.scanId } })
     expect(stored).toMatchObject({ status: 'confirmed', frontImage: null, backImage: null })
     const consents = await t.db.consentRecord.findMany({ where: { candidateId: out.candidate.id } })
-    expect(consents.map((c) => c.purpose).sort()).toEqual(['discoverable', 'shareOnlyAccommodations', 'useProfile'])
+    expect(consents.map((c) => c.purpose).sort()).toEqual(['discoverable', 'keepIdCardImages', 'shareOnlyAccommodations', 'useProfile'])
 
     // El mismo escaneo no se puede reutilizar
     expect((await inject({ method: 'POST', url: '/api/signup', payload: body })).statusCode).toBe(404)
@@ -389,21 +386,14 @@ describe('API de Capaz (flujo completo)', () => {
 
   it('perfil: vista de la empresa, cambio de privacidad registrado y exportación', async () => {
     const cv = (await inject({ url: '/api/me/company-view', headers: bearer(token) })).json()
-    expect(cv.applied.disability).toBeNull()
-    expect(cv.applied.contact.phone).toBeTruthy()
-    expect(cv.discovered).toBeNull() // se registró con discoverable: false
+    expect(cv.disability).toBeNull()
+    expect(cv.contact.phone).toBeTruthy()
     expect(JSON.stringify(cv)).not.toContain(idNumber)
 
-    const p = await inject({
-      method: 'PATCH',
-      url: '/api/me',
-      headers: bearer(token),
-      payload: { privacy: { shareOnlyAccommodations: false, discoverable: true } },
-    })
+    const p = await inject({ method: 'PATCH', url: '/api/me', headers: bearer(token), payload: { privacy: { shareOnlyAccommodations: false } } })
     expect(p.json().privacy.shareOnlyAccommodations).toBe(false)
     const cv2 = (await inject({ url: '/api/me/company-view', headers: bearer(token) })).json()
-    expect(cv2.applied.disability).toEqual({ type: 'physical', percent: 70 })
-    expect(cv2.discovered).toMatchObject({ contact: null, contactHidden: true, disability: { type: 'physical', percent: 70 } })
+    expect(cv2.disability).toEqual({ type: 'physical', percent: 70 })
 
     const ex = await inject({ url: '/api/me/export', headers: bearer(token) })
     expect(ex.headers['content-disposition']).toContain('attachment')

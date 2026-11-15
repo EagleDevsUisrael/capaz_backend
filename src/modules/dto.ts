@@ -117,25 +117,15 @@ export interface CompanyViewInput {
   accommodationsNeeded: string[]
   otherAccommodation: string
   shareOnlyAccommodations: boolean
-  /** "Que las empresas me encuentren sin postular" */
-  discoverable: boolean
   disabilityType?: string | null
   disabilityPercent?: number | null
 }
 
 /**
- * Quién mira el perfil:
- *  - applied:    una empresa a la que la persona postuló → ve el celular y el correo
- *  - discovered: una empresa que la encontró sin que postule → sin contacto hasta que la persona
- *                acepte una invitación (las invitaciones llegan con el portal de empresas, fuera del MVP)
- */
-export type CompanyAudience = 'applied' | 'discovered'
-
-/**
  * "Así te verá la empresa" (paso 4 y perfil): nombre, ciudad, estudios, experiencia resumida y ajustes.
  * Nunca incluye el carnet ni la cédula; el tipo y porcentaje de discapacidad solo si la persona lo autoriza.
  */
-export function companyView(c: CompanyViewInput, audience: CompanyAudience) {
+export function companyView(c: CompanyViewInput) {
   const educationLabel = c.education ? labelOf(EDUCATION_LEVELS, c.education) : null
   const summary = experienceSummary(c.experienceText, c.hasWorked)
   const showDisability = !c.shareOnlyAccommodations && c.disabilityType != null
@@ -153,31 +143,14 @@ export function companyView(c: CompanyViewInput, audience: CompanyAudience) {
     idCardHidden: true as const,
     disabilityHidden: !showDisability,
     disability: showDisability ? { type: c.disabilityType!, percent: c.disabilityPercent ?? null } : null,
+    // No aparecen en el mockup de la vista previa, pero la empresa los necesita para contactar (al postular)
     skills: c.skills,
-    audience,
-    /** Celular y correo: solo para empresas a las que la persona postuló */
-    contact:
-      audience === 'applied' && c.phone
-        ? { phone: c.phone, email: c.email ?? null, preferred: c.contactPreference ?? null }
-        : null,
-    contactHidden: audience !== 'applied',
-  }
-}
-
-/**
- * Las dos vistas de "Así te verá la empresa":
- *  - applied: empresas a las que postula (con contacto)
- *  - discovered: empresas que la encuentran sin postular, sin contacto; null si no activó ese permiso
- */
-export function companyViews(c: CompanyViewInput) {
-  return {
-    applied: companyView(c, 'applied'),
-    discovered: c.discoverable ? companyView(c, 'discovered') : null,
+    contact: c.phone ? { phone: c.phone, email: c.email ?? null, preferred: c.contactPreference ?? null } : null,
   }
 }
 
 export const companyViewDto = (c: Candidate) =>
-  companyViews({
+  companyView({
     fullName: c.preferredName ?? c.fullName,
     city: c.city,
     phone: c.phone,
@@ -190,7 +163,6 @@ export const companyViewDto = (c: Candidate) =>
     accommodationsNeeded: c.accommodationsNeeded,
     otherAccommodation: c.otherAccommodation,
     shareOnlyAccommodations: c.shareOnlyAccommodations,
-    discoverable: c.discoverable,
     disabilityType: c.disabilityType,
     disabilityPercent: c.disabilityPercent,
   })

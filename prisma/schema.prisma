@@ -107,6 +107,8 @@ enum ConsentPurpose {
   shareOnlyAccommodations
   /// Las empresas pueden encontrar a la persona sin que postule
   discoverable
+  /// Guardar las fotos del carnet después de confirmar los datos
+  keepIdCardImages
 
   @@map("consent_purpose")
 }
@@ -188,7 +190,7 @@ model ConsentRecord {
 // ─── Carnet: OCR y traspaso computadora → celular ───────────────────────────
 
 /// Fotos del carnet y datos leídos. Las imágenes se guardan cifradas (AES-256-GCM)
-/// y SIEMPRE se borran al confirmar los datos en el registro.
+/// y se borran al confirmar los datos, salvo que la persona acepte guardarlas.
 model IdCardScan {
   id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   candidateId String?          @map("candidate_id") @db.Uuid

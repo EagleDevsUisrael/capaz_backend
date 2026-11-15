@@ -26,19 +26,6 @@ CREATE TYPE "interview_mode" AS ENUM ('inPerson', 'videoCall', 'phoneCall');
 -- AlterEnum (Postgres 12+ lo permite dentro de la transacción; el valor nuevo no se usa en esta migración)
 ALTER TYPE "job_schedule" ADD VALUE 'internship';
 
--- Datos (agregado a mano): se quitó la opción "guardar las fotos del carnet".
--- Sus consentimientos se borran (si no, el cambio de enum falla) y las fotos que se hubieran guardado, también.
-DELETE FROM "consent_records" WHERE "purpose" = 'keepIdCardImages';
-UPDATE "id_card_scans" SET "front_image" = NULL, "back_image" = NULL, "front_mime" = NULL, "back_mime" = NULL
-WHERE "status" = 'confirmed';
-
--- AlterEnum (quita keepIdCardImages)
-CREATE TYPE "consent_purpose_new" AS ENUM ('useProfile', 'shareOnlyAccommodations', 'discoverable');
-ALTER TABLE "consent_records" ALTER COLUMN "purpose" TYPE "consent_purpose_new" USING ("purpose"::text::"consent_purpose_new");
-ALTER TYPE "consent_purpose" RENAME TO "consent_purpose_old";
-ALTER TYPE "consent_purpose_new" RENAME TO "consent_purpose";
-DROP TYPE "consent_purpose_old";
-
 -- AlterTable
 ALTER TABLE "candidates" ADD COLUMN     "id_card_valid_indefinitely" BOOLEAN NOT NULL DEFAULT false;
 

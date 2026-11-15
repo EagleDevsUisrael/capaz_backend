@@ -88,18 +88,18 @@ Todas las rutas van bajo `/api`. Con `npm run dev`, la referencia completa con l
 | Paso 1 `/signup/id-card` | `POST /id-card/scan` (multipart `front`, `back`; JPG, PNG, HEIC, WEBP o PDF de hasta 10 MB) → `{ scanId, fullName, idNumber, birthDate, disabilityType, disabilityPercent, validity, confidence, needsReview[], idNumberValid }`. `validity` puede ser `'AAAA-MM-DD'`, `'indefinite'` ("Indefinida") o `null` |
 | Continuar en el celular | `POST /id-card/handoffs` → `{ token, url, expiresAt }` · `GET /id-card/handoffs/:token` (polling: `waiting`, `partial`, `ready`, `consumed` o `expired`) · `PUT /id-card/handoffs/:token/:side` (celular, multipart `image`) · `GET /id-card/handoffs/:token/:side` (vista previa) · `POST /id-card/handoffs/:token/scan` |
 | Paso 3: hoja de vida | `POST /cv-uploads` (multipart `file`: PDF, Word, JPG o PNG de hasta 10 MB) → `{ cvUploadId }`; se manda en `/signup` |
-| Paso 4: "Así te verá la empresa" | `POST /company-view/preview { contact, experience, privacy, idCard? }`, sin cuenta → `{ applied, discovered }`. Cada vista trae `{ fullName, headline, accommodationsNeeded, idCardHidden, disability, contact… }`. `applied` es para empresas a las que postula e incluye el contacto; `discovered` es para empresas que la encuentran sin postular, va sin contacto y es `null` si no activó ese permiso |
+| Paso 4: "Así te verá la empresa" | `POST /company-view/preview { contact, experience, privacy, idCard? }` → `{ fullName, headline, accommodationsNeeded, skills, contact, idCardHidden, disability… }`, sin cuenta |
 | Paso 2: verificar celular | `POST /phone-verifications { phone, channel? }` → `{ verificationId, expiresAt }` · `POST /phone-verifications/:id/verify { code }` → `{ verified, usableUntil }` |
 | Pasos 2–4 → enviar | `POST /signup` `{ scanId, idCard, contact, phoneVerificationId, experience, privacy, applyToJobId?, cvUploadId? }` → `{ token, expiresAt, candidate, applicationId }` |
 | Ingresar `/login` | `POST /auth/code { idNumber }` → 202 con `resendAfterSeconds: 45` ("Reenviar en 0:45") · `POST /auth/verify { idNumber, code }` → `{ token, expiresAt, candidate }` · `POST /auth/logout` |
 | Resultados IA `/for-you` | `GET /matches` → `{ firstApplication, recommended[], others[], rejected[], counts: { matching, recommended, totalJobs }, consideredFactors[], profileComplete, missingAccommodations, threshold }` |
 | Postular `/applications/:id/sent` | `POST /applications { jobId }` → la postulación con `nextSteps: { reviewBusinessDays: 5, reviewBy, contactChannel, contactValue }` |
 | Mis postulaciones `/applications` | `GET /applications` (en "No seleccionada" viene `similarCount`) · `GET /applications/:id` (con línea de tiempo) · `POST /applications/:id/confirm-interview` ("Confirmar asistencia") · `GET /applications/:id/similar` (hasta 4 ofertas parecidas) · `POST /applications/:id/withdraw`. La entrevista es `{ at, mode: inPerson, videoCall o phoneCall, place, confirmedAt }` |
-| Mi perfil (diseño pendiente) | `GET` y `PATCH /me` (un celular nuevo exige `phoneVerificationId`) · `GET /me/company-view` ("Así te verá la empresa", `{ applied, discovered }`) · `GET`, `PUT` y `DELETE /me/cv` (hoja de vida) · `GET /me/export` · `DELETE /me` |
+| Mi perfil (diseño pendiente) | `GET` y `PATCH /me` (un celular nuevo exige `phoneVerificationId`) · `GET /me/company-view` ("Así te verá la empresa") · `GET`, `PUT` y `DELETE /me/cv` (hoja de vida) · `GET /me/export` · `DELETE /me` |
 | Voz (respaldo) | `POST /transcribe` (multipart `audio`) → `{ text }` · `POST /tts { text, rate }` → audio |
 | Admin `/admin/jobs` | `GET` y `POST /admin/jobs` · `GET`, `PUT` y `DELETE /admin/jobs/:id` · `POST /admin/jobs/random { count }` · `POST /admin/match { candidate }` · `GET /admin/candidates` · `POST /admin/candidates/random` · `GET /admin/candidates/:id/matches` · `GET /admin/applications` · `PATCH /admin/applications/:id { status, interviewAt, interviewMode, interviewPlace }` |
 
-Los cuerpos de `idCard`, `contact`, `experience` y `privacy` tienen **la misma forma que `useSignupStore` del front**. `GET /me` devuelve el perfil con esa misma forma.
+Los cuerpos de `idCard`, `contact`, `experience` y `privacy` tienen **la misma forma que `useSignupStore` del front**, y `privacy` agrega `keepIdCardImages` (por defecto `false`). `GET /me` devuelve el perfil con esa misma forma.
 
 ## Motor de match
 
@@ -114,10 +114,9 @@ El ejemplo del documento está cubierto por pruebas: el desarrollador backend sa
 ## Privacidad (LOPDP)
 
 - La **hoja de vida se guarda cifrada**. Si nadie la vincula a un registro en 2 horas, se borra.
-- Las **fotos del carnet se guardan cifradas** con AES-256-GCM (`ID_CARD_ENCRYPTION_KEY`). **Siempre** se borran al confirmar el registro. Los escaneos sin confirmar se borran a las 2 horas, y los traspasos al celular, a los 10 minutos.
+- Las **fotos del carnet se guardan cifradas** con AES-256-GCM (`ID_CARD_ENCRYPTION_KEY`). Se borran al confirmar el registro, salvo que la persona marque que quiere guardarlas (`keepIdCardImages`, apagado por defecto). Los escaneos sin confirmar se borran a las 2 horas, y los traspasos al celular, a los 10 minutos.
 - **Cada consentimiento queda registrado** en `consent_records` con la fecha, la versión de la política, la IP y el navegador. También se registra cada cambio posterior.
 - **La empresa nunca ve el carnet ni la cédula.** El tipo y el porcentaje de discapacidad solo los ve si la persona desactiva "solo ajustes". `/me/company-view` muestra exactamente eso.
-- **El celular y el correo solo los ven las empresas a las que la persona postuló.** Una empresa que la encuentra sin que postule (permiso "Que las empresas me encuentren") la ve sin contacto hasta que la persona acepte una invitación. Las invitaciones llegarán con el portal de empresas, que está fuera del MVP.
 - La persona puede **descargar** (`/me/export`) o **borrar todo** (`DELETE /me`, en cascada).
 - **El celular se verifica antes de guardarlo**, tanto en el registro como al cambiarlo, porque el login envía el código a ese número.
 - Los tokens de sesión, los códigos y los enlaces del QR se guardan solo como hash. Hay límites: 1 código por minuto, 5 por hora, 5 intentos por código y un límite de pedidos por IP.
@@ -211,8 +210,7 @@ Nunca debe recibir la cédula ni el porcentaje de discapacidad.
 
 ## Pendiente o por acordar
 
-- **Elementos que no aparecen en los mockups y el equipo decidió mantener:** soporte de WEBP en el carnet; los estados Contratada y Retirada; y, en el admin, editar ofertas y cambiar el estado de las postulaciones.
-- **Invitaciones de empresas:** el contacto de quien activó "Que las empresas me encuentren" se mostrará cuando acepte una invitación. Falta diseñarlo junto con el portal de empresas.
+- **Elementos que no aparecen en los mockups y el equipo decidió mantener:** soporte de WEBP en el carnet; la opción de guardar las fotos del carnet (viene del documento; por defecto se borran); el contacto y las habilidades en "Así te verá la empresa"; los estados Contratada y Retirada; y, en el admin, editar ofertas y cambiar el estado de las postulaciones.
 
 - **OCR real:** ver "Servicio de IA".
 - **Lista de ajustes y tabla de choques:** el front tiene un TODO para acordarla. Está centralizada en `catalog.ts`.

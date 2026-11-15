@@ -90,6 +90,8 @@ export const privacyData = z.object({
   useProfile: z.literal(true, { error: 'Para usar Capaz tienes que aceptar el uso de tu perfil' }),
   shareOnlyAccommodations: z.boolean(),
   discoverable: z.boolean(),
+  /** Guardar las fotos del carnet después de confirmar (por defecto se borran) */
+  keepIdCardImages: z.boolean().default(false),
 })
 
 /** Lectura fácil por secciones (pantalla "Detalle de oferta (Lectura fácil)"): frases cortas, una idea por línea. */
