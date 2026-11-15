@@ -668,6 +668,10 @@
                     "properties": {
                       "shareOnlyAccommodations": {
                         "type": "boolean"
+                      },
+                      "discoverable": {
+                        "default": false,
+                        "type": "boolean"
                       }
                     },
                     "required": [
@@ -914,10 +918,6 @@
                         "type": "boolean"
                       },
                       "discoverable": {
-                        "type": "boolean"
-                      },
-                      "keepIdCardImages": {
-                        "default": false,
                         "type": "boolean"
                       }
                     },
@@ -1632,16 +1632,6 @@
                     "type": "string",
                     "maxLength": 4000
                   },
-                  "tasks": {
-                    "default": [],
-                    "maxItems": 20,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 300
-                    }
-                  },
                   "requirements": {
                     "default": [],
                     "maxItems": 20,
@@ -1666,11 +1656,6 @@
                     "default": "",
                     "type": "string",
                     "maxLength": 1000
-                  },
-                  "easyReadSummary": {
-                    "default": "",
-                    "type": "string",
-                    "maxLength": 2000
                   },
                   "easyRead": {
                     "default": null,
@@ -1963,16 +1948,6 @@
                     "type": "string",
                     "maxLength": 4000
                   },
-                  "tasks": {
-                    "default": [],
-                    "maxItems": 20,
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 300
-                    }
-                  },
                   "requirements": {
                     "default": [],
                     "maxItems": 20,
@@ -1997,11 +1972,6 @@
                     "default": "",
                     "type": "string",
                     "maxLength": 1000
-                  },
-                  "easyReadSummary": {
-                    "default": "",
-                    "type": "string",
-                    "maxLength": 2000
                   },
                   "easyRead": {
                     "default": null,

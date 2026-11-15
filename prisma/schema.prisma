@@ -107,8 +107,6 @@ enum ConsentPurpose {
   shareOnlyAccommodations
   /// Las empresas pueden encontrar a la persona sin que postule
   discoverable
-  /// Guardar las fotos del carnet después de confirmar los datos
-  keepIdCardImages
 
   @@map("consent_purpose")
 }
@@ -190,7 +188,7 @@ model ConsentRecord {
 // ─── Carnet: OCR y traspaso computadora → celular ───────────────────────────
 
 /// Fotos del carnet y datos leídos. Las imágenes se guardan cifradas (AES-256-GCM)
-/// y se borran al confirmar los datos, salvo que la persona acepte guardarlas.
+/// y SIEMPRE se borran al confirmar los datos en el registro.
 model IdCardScan {
   id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   candidateId String?          @map("candidate_id") @db.Uuid
@@ -324,16 +322,12 @@ model Job {
   summary              String      @default("")
   /// "Qué harás"
   description          String      @default("")
-  /// Tareas una por elemento (no aparece en los mockups)
-  tasks                String[]    @default([])
   /// "Qué necesitas": un requisito por elemento
   requirements         String[]    @default([])
   /// "Ajustes que ofrece la empresa" en detalle: "Computadora con lector de pantalla JAWS y NVDA", …
   accommodationsDetail String[]    @default([]) @map("accommodations_detail")
   /// "Salario y beneficios"
   salaryBenefits       String      @default("") @map("salary_benefits")
-  /// Lectura fácil en texto libre (versión anterior; reemplazada por easyRead)
-  easyReadSummary      String      @default("") @map("easy_read_summary")
   /// Lectura fácil por secciones, escrita a mano por el admin:
   /// { jobTitle, whatYouDo[], whereAndWhen[], pay[], whatYouGet[], whatYouNeed[] }
   easyRead             Json?       @map("easy_read")

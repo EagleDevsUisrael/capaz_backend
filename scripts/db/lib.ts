@@ -34,6 +34,8 @@ export function prismaDiff(from: string, to: string) {
   })
     .replace(/^-- CreateSchema\nCREATE SCHEMA IF NOT EXISTS "public";\n\n/m, '')
     .replace(/\r\n/g, '\n')
+    // Cada migración ya va en una sola transacción: un BEGIN/COMMIT interno de Prisma la cerraría antes de tiempo
+    .replace(/^(BEGIN|COMMIT);\n/gm, '')
     .trim()
 }
 

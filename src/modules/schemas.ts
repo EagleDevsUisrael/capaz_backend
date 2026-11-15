@@ -90,8 +90,6 @@ export const privacyData = z.object({
   useProfile: z.literal(true, { error: 'Para usar Capaz tienes que aceptar el uso de tu perfil' }),
   shareOnlyAccommodations: z.boolean(),
   discoverable: z.boolean(),
-  /** Guardar las fotos del carnet después de confirmar (por defecto se borran) */
-  keepIdCardImages: z.boolean().default(false),
 })
 
 /** Lectura fácil por secciones (pantalla "Detalle de oferta (Lectura fácil)"): frases cortas, una idea por línea. */
@@ -123,14 +121,12 @@ export const jobInput = z
     summary: z.string().max(300).default(''),
     /** "Qué harás" */
     description: z.string().max(4000).default(''),
-    tasks: z.array(z.string().trim().min(1).max(300)).max(20).default([]),
     /** "Qué necesitas" */
     requirements: z.array(z.string().trim().min(1).max(300)).max(20).default([]),
     /** "Ajustes que ofrece la empresa" en detalle */
     accommodationsDetail: z.array(z.string().trim().min(1).max(300)).max(20).default([]),
     /** "Salario y beneficios" */
     salaryBenefits: z.string().max(1000).default(''),
-    easyReadSummary: z.string().max(2000).default(''),
     easyRead: easyRead.nullable().default(null),
     compatibleDisabilities: disabilityTypes.refine((a) => a.length > 0, {
       error: 'Marca al menos un tipo de discapacidad compatible',

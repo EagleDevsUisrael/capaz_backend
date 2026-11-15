@@ -9,7 +9,7 @@ import type { JobInput } from '../modules/schemas.js'
 
 type Province = (typeof PROVINCE_CODES)[number]
 type Place = { city: string; province: Province | null }
-type Template = Omit<JobInput, 'isActive' | 'company' | 'city' | 'province' | 'easyReadSummary' | 'tasks'> & {
+type Template = Omit<JobInput, 'isActive' | 'company' | 'city' | 'province'> & {
   companies: string[]
   places: Place[]
 }
@@ -177,7 +177,7 @@ export const JOB_TEMPLATES: Template[] = [
     dailyHours: 8,
     salaryMin: 470,
     salaryMax: 520,
-    summary: 'Ingresas datos de formularios al sistema. Trabajas sentado, con rampa y teclado adaptado.',
+    summary: 'Ingresas datos de formularios al sistema. Trabajo sentado, con rampa y teclado adaptado.',
     description: 'Ingresas datos de formularios al sistema y revisas que estén completos.',
     requirements: ['Manejo de Excel'],
     accommodationsDetail: ['Rampa y ascensor', 'Teclado adaptado', 'Intérprete de señas para la capacitación'],
@@ -286,8 +286,6 @@ const pick = <T>(a: readonly T[]) => a[Math.floor(Math.random() * a.length)]!
 
 const toInput = ({ companies: _c, places: _p, ...t }: Template, company: string, place: Place): JobInput => ({
   ...t,
-  tasks: [],
-  easyReadSummary: '',
   company,
   city: place.city,
   province: place.province,

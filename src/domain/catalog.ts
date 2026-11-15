@@ -46,11 +46,14 @@ export const SKILLS = [
 export const SKILL_CODES = codes(SKILLS)
 export type Skill = (typeof SKILL_CODES)[number]
 
-/** Ajustes: los marca la persona (accommodationsNeeded) y los ofrece la empresa (accommodationsOffered). */
+/**
+ * Ajustes: los marca la persona (accommodationsNeeded) y los ofrece la empresa (accommodationsOffered).
+ * `offeredReason` es la razón de "Por qué encaja contigo": siempre en forma neutra, sin género.
+ */
 export const ACCOMMODATIONS = [
-  { value: 'seated', label: 'Trabajo sentado', offeredReason: 'Puedes trabajar sentado' },
+  { value: 'seated', label: 'Trabajo sentado', offeredReason: 'Trabajo sentado' },
   { value: 'ramp', label: 'Rampa o ascensor', offeredReason: 'Tiene rampa o ascensor' },
-  { value: 'flexibleSchedule', label: 'Horario flexible', offeredReason: 'Te dan horario flexible' },
+  { value: 'flexibleSchedule', label: 'Horario flexible', offeredReason: 'Horario flexible, como pediste' },
   { value: 'adaptedKeyboard', label: 'Teclado adaptado', offeredReason: 'Te dan el teclado adaptado que pediste' },
   { value: 'screenReader', label: 'Lector de pantalla', offeredReason: 'Tienen lector de pantalla' },
   { value: 'signLanguage', label: 'Intérprete de señas', offeredReason: 'Tienen intérprete de lengua de señas' },

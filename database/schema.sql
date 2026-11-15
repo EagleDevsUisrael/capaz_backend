@@ -38,7 +38,7 @@ CREATE TYPE "id_card_scan_status" AS ENUM ('pending', 'confirmed');
 CREATE TYPE "code_channel" AS ENUM ('whatsapp', 'sms');
 
 -- CreateEnum
-CREATE TYPE "consent_purpose" AS ENUM ('useProfile', 'shareOnlyAccommodations', 'discoverable', 'keepIdCardImages');
+CREATE TYPE "consent_purpose" AS ENUM ('useProfile', 'shareOnlyAccommodations', 'discoverable');
 
 -- CreateTable
 CREATE TABLE "candidates" (
@@ -190,11 +190,9 @@ CREATE TABLE "jobs" (
     "daily_hours" SMALLINT,
     "summary" TEXT NOT NULL DEFAULT '',
     "description" TEXT NOT NULL DEFAULT '',
-    "tasks" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "requirements" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "accommodations_detail" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "salary_benefits" TEXT NOT NULL DEFAULT '',
-    "easy_read_summary" TEXT NOT NULL DEFAULT '',
     "easy_read" JSONB,
     "compatible_disabilities" TEXT[] DEFAULT ARRAY[]::TEXT[],
     "physical_demands" TEXT[] DEFAULT ARRAY[]::TEXT[],

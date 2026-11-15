@@ -1,7 +1,6 @@
 /**
  * POST /api/signup: envío final del registro de 4 pasos (reemplaza el sessionStorage del front).
- * Exige el celular verificado (POST /api/phone-verifications). Crea la cuenta, registra el consentimiento, borra las fotos del carnet (salvo que la persona
- * acepte guardarlas) y devuelve la sesión. Si viene `applyToJobId`, también crea la postulación.
+ * Exige el celular verificado (POST /api/phone-verifications). Crea la cuenta, registra el consentimiento, borra las fotos del carnet y devuelve la sesión. Si viene `applyToJobId`, también crea la postulación.
  */
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { z } from 'zod'
@@ -92,7 +91,6 @@ export const signupRoutes: FastifyPluginAsyncZod = async (app) => {
             useProfile: true,
             shareOnlyAccommodations: privacy.shareOnlyAccommodations,
             discoverable: privacy.discoverable,
-            keepIdCardImages: privacy.keepIdCardImages,
           })
 
           await tx.idCardScan.update({
@@ -101,7 +99,11 @@ export const signupRoutes: FastifyPluginAsyncZod = async (app) => {
               candidateId: candidate.id,
               status: 'confirmed',
               confirmedAt: now,
-              ...(!privacy.keepIdCardImages && { frontImage: null, backImage: null, frontMime: null, backMime: null }),
+              // Las fotos del carnet siempre se borran al confirmar los datos
+              frontImage: null,
+              backImage: null,
+              frontMime: null,
+              backMime: null,
             },
           })
 

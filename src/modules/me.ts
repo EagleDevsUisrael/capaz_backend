@@ -117,7 +117,6 @@ export const meRoutes: FastifyPluginAsyncZod = async (app) => {
         ocrProvider: s.ocrProvider,
         createdAt: s.createdAt.toISOString(),
         confirmedAt: s.confirmedAt?.toISOString() ?? null,
-        imagesStored: s.frontImage != null,
       })),
     }
     return reply
