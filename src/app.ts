@@ -29,6 +29,7 @@ import { signupRoutes } from './modules/signup.js'
 import { voiceRoutes } from './modules/voice.js'
 import { authPlugin } from './plugins/auth.js'
 import { createMessagingProvider, type MessagingProvider } from './services/messaging.js'
+import { IaClient } from './services/ia.js'
 import { createOcrProvider, type OcrProvider } from './services/ocr.js'
 import {
   createTranscriptionProvider,
@@ -38,6 +39,8 @@ import {
 } from './services/voice.js'
 
 export interface Services {
+  /** null si no hay IA_SERVICE_TOKEN */
+  ia: IaClient | null
   ocr: OcrProvider
   messaging: MessagingProvider
   transcription: TranscriptionProvider
@@ -65,8 +68,14 @@ export async function buildApp(opts: { db: Db; config: Env; services?: Partial<S
 
   app.decorate('db', opts.db)
   app.decorate('config', opts.config)
+  const ia =
+    opts.services?.ia ??
+    (opts.config.IA_SERVICE_TOKEN
+      ? new IaClient({ baseUrl: opts.config.IA_SERVICE_URL, token: opts.config.IA_SERVICE_TOKEN, timeoutMs: opts.config.IA_TIMEOUT_MS })
+      : null)
   app.decorate('services', {
-    ocr: opts.services?.ocr ?? createOcrProvider(opts.config.OCR_PROVIDER),
+    ia,
+    ocr: opts.services?.ocr ?? createOcrProvider(opts.config.OCR_PROVIDER, ia ?? undefined),
     messaging: opts.services?.messaging ?? createMessagingProvider(opts.config.MESSAGING_PROVIDER, app.log),
     transcription: opts.services?.transcription ?? createTranscriptionProvider(opts.config.TRANSCRIBE_PROVIDER),
     tts: opts.services?.tts ?? createTtsProvider(opts.config.TTS_PROVIDER),

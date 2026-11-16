@@ -8,6 +8,7 @@
 import { createHash } from 'node:crypto'
 import { withCheckDigit } from '../domain/cedula.js'
 import type { DisabilityType } from '../domain/catalog.js'
+import type { IaClient } from './ia.js'
 
 export interface IdCardImage {
   data: Buffer
@@ -77,10 +78,33 @@ export class MockOcrProvider implements OcrProvider {
   }
 }
 
-export function createOcrProvider(name: string): OcrProvider {
+/**
+ * OCR con capaz_ia (Ollama con un modelo de visión). Si la IA no responde NO se usa el simulado:
+ * mostraría datos de otra persona. Se responde 503 y el front ofrece escribir los datos a mano.
+ */
+export class IaOcrProvider implements OcrProvider {
+  readonly name = 'ia'
+
+  constructor(private readonly ia: IaClient) {}
+
+  async readIdCard(front: IdCardImage, back: IdCardImage): Promise<OcrResult> {
+    const img = (i: IdCardImage) => ({ data: i.data.toString('base64'), mime: i.mime })
+    const r = await this.ia.post<{ provider: string; fields: IdCardFields; confidence: IdCardConfidence }>(
+      '/v1/id-card/read',
+      { front: img(front), back: img(back) },
+      'No pudimos leer tu carnet en este momento. Puedes escribir tus datos a mano.',
+    )
+    return { fields: r.fields, confidence: r.confidence, provider: r.provider }
+  }
+}
+
+export function createOcrProvider(name: string, ia?: IaClient): OcrProvider {
   switch (name) {
     case 'mock':
       return new MockOcrProvider()
+    case 'ia':
+      if (!ia) throw new Error('OCR_PROVIDER=ia necesita IA_SERVICE_URL e IA_SERVICE_TOKEN')
+      return new IaOcrProvider(ia)
     default:
       throw new Error(`Proveedor de OCR desconocido: ${name}`)
   }

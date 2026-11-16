@@ -190,6 +190,26 @@ describe('API de Capaz (flujo completo)', () => {
     expect(r.json().error.code).toBe('UNSUPPORTED_FILE')
   })
 
+  it('carnet: si el OCR (IA) falla, guarda las fotos y pide escribir los datos a mano', async () => {
+    const original = t.app.services.ocr
+    t.app.services.ocr = { name: 'caido', readIdCard: () => Promise.reject(new Error('IA caída')) }
+    try {
+      const mp = multipart({
+        front: { data: fakeJpeg('f-ocr-caido'), filename: 'f.jpg', type: 'image/jpeg' },
+        back: { data: fakeJpeg('b-ocr-caido'), filename: 'b.jpg', type: 'image/jpeg' },
+      })
+      const r = await inject({ method: 'POST', url: '/api/id-card/scan', ...mp })
+      expect(r.statusCode, r.body).toBe(200)
+      const s = r.json()
+      expect(s.ocrFailed).toBe(true)
+      expect(s.scanId).toMatch(/^[0-9a-f-]{36}$/)
+      expect(s.fullName).toBe('')
+      expect(s.needsReview).toEqual(expect.arrayContaining(['fullName', 'idNumber', 'disabilityType']))
+    } finally {
+      t.app.services.ocr = original
+    }
+  })
+
   it('registro completo: carnet → contacto → experiencia → privacidad, con postulación pendiente', async () => {
     const mp = multipart({
       front: { data: fakeJpeg('front-1'), filename: 'front.jpg', type: 'image/jpeg' },

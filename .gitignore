@@ -7,3 +7,5 @@ coverage/
 *.log
 # Cliente de Prisma generado (se regenera con `npm install` / `npm run db:generate`)
 src/generated/
+*.env
+!.env.example

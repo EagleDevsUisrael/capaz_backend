@@ -11,6 +11,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { z } from 'zod'
 import { rankJobs } from '../domain/matchEngine.js'
 import { notFound } from '../lib/errors.js'
+import { iaUnavailable } from '../services/ia.js'
 import { randomCandidates, randomJobs } from '../seed/demoData.js'
 import { applicationDto, jobDto, matchCandidateOf } from './dto.js'
 import { accommodations, disabilityType, educationLevel, idParam, interviewMode, jobInput, skills, toJobData, uuid } from './schemas.js'
@@ -69,6 +70,36 @@ export const adminRoutes: FastifyPluginAsyncZod = async (app) => {
       return reply.status(201).send({ items: created.map(jobDto) })
     },
   )
+
+  /**
+   * Borrador de "Lectura fácil" generado con IA (capaz_ia → Ollama). No guarda nada:
+   * el admin lo revisa y lo guarda con PUT /jobs/:id. 503 si la IA no está disponible.
+   */
+  app.post('/jobs/:id/easy-read-draft', { schema: { tags, security, params: idParam } }, async (req) => {
+    const j = await app.db.job.findUnique({ where: { id: req.params.id } })
+    if (!j) throw notFound()
+    if (!app.services.ia) throw iaUnavailable('La IA no está configurada (falta IA_SERVICE_TOKEN).')
+    const job = jobDto(j)
+    const { easyRead, provider } = await app.services.ia.post<{ easyRead: unknown; provider: string }>(
+      '/v1/jobs/easy-read',
+      {
+        title: job.title,
+        company: job.company,
+        city: job.city,
+        modality: job.modality,
+        schedule: job.schedule,
+        dailyHours: job.dailyHours,
+        salaryMin: job.salaryMin,
+        salaryMax: job.salaryMax,
+        description: job.description,
+        requirements: job.requirements,
+        salaryBenefits: job.salaryBenefits,
+        accommodationsDetail: job.accommodationsDetail,
+      },
+      'La IA no respondió. Intenta otra vez o escribe la Lectura fácil a mano.',
+    )
+    return { easyRead, provider }
+  })
 
   // ── Probar match rápido ──
   app.post(

@@ -18,7 +18,8 @@
     "postinstall": "prisma generate",
     "openapi": "tsx scripts/export-openapi.ts",
     "db:migration": "tsx scripts/db/new-migration.ts",
-    "db:migrate": "tsx scripts/db/migrate.ts"
+    "db:migrate": "tsx scripts/db/migrate.ts",
+    "db:seed-sql": "tsx scripts/db/seed-sql.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.4.3",
