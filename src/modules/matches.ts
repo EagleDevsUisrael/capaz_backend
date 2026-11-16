@@ -1,4 +1,5 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
+import { z } from 'zod'
 import { ACCOMMODATIONS, labelOf, SKILLS } from '../domain/catalog.js'
 import { RECOMMEND_THRESHOLD, rankJobs, scoreJob } from '../domain/matchEngine.js'
 import { notFound } from '../lib/errors.js'
@@ -91,7 +92,11 @@ export const matchRoutes: FastifyPluginAsyncZod = async (app) => {
   app.get(
     '/matches/ai',
     {
-      schema: { tags: ['match'], security: [{ session: [] }] },
+      schema: {
+        tags: ['match'],
+        security: [{ session: [] }],
+        querystring: z.object({ refresh: z.coerce.boolean().default(false) }),
+      },
       preHandler: app.authenticate,
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
     },
@@ -139,6 +144,10 @@ export const matchRoutes: FastifyPluginAsyncZod = async (app) => {
           }),
         },
         'La IA no respondió. Tus recomendaciones siguen abajo.',
+        {
+          'X-Capaz-User-Id': c.id,
+          ...(req.query.refresh ? { 'X-Capaz-AI-Refresh': '1' } : {}),
+        },
       )
     },
   )

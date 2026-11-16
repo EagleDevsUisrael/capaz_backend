@@ -19,7 +19,7 @@ export const iaUnavailable = (message: string) => new HttpError(503, 'IA_UNAVAIL
 export class IaClient {
   constructor(private readonly opts: IaClientOptions) {}
 
-  async post<T>(path: string, body: unknown, unavailableMessage: string): Promise<T> {
+  async post<T>(path: string, body: unknown, unavailableMessage: string, extraHeaders: Record<string, string> = {}): Promise<T> {
     let res: Response
     try {
       res = await fetch(new URL(path, this.opts.baseUrl), {
@@ -33,6 +33,7 @@ export class IaClient {
                 'CF-Access-Client-Secret': this.opts.cloudflareAccessClientSecret,
               }
             : {}),
+          ...extraHeaders,
         },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(this.opts.timeoutMs),
