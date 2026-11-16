@@ -15,18 +15,12 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { z } from 'zod'
 import { isValidCedula } from '../domain/cedula.js'
 import { decrypt, encrypt, newToken, sha256 } from '../lib/crypto.js'
-import { gone, notFound } from '../lib/errors.js'
+import { HttpError, gone, notFound, unprocessable } from '../lib/errors.js'
 import { readMultipart, requireIdCardImage } from '../lib/uploads.js'
 import { LOW_CONFIDENCE, type IdCardImage, type OcrResult } from '../services/ocr.js'
 
 export const SCAN_TTL_MS = 2 * 60 * 60 * 1000
 
-/** Resultado cuando el OCR no responde: campos vacíos, confianza 0 (todo queda en needsReview) */
-const EMPTY_OCR: OcrResult = {
-  provider: 'none',
-  fields: { fullName: '', idNumber: '', birthDate: null, disabilityType: null, disabilityPercent: null, validity: null },
-  confidence: { fullName: 0, idNumber: 0, birthDate: 0, disabilityType: 0, disabilityPercent: 0, validity: 0 },
-}
 export const HANDOFF_TTL_MS = 10 * 60 * 1000
 
 const tokenParam = z.object({ token: z.string().min(20).max(100) })
@@ -36,14 +30,32 @@ export const idCardRoutes: FastifyPluginAsyncZod = async (app) => {
   const limit = { rateLimit: { max: 10, timeWindow: '1 minute' } }
 
   async function scan(front: IdCardImage, back: IdCardImage) {
-    // Si el OCR (la IA) falla, igual se guardan las fotos: la persona escribe sus datos a mano y puede
-    // terminar el registro (scanId válido); las fotos quedan como respaldo para verificar esos datos.
-    let ocrFailed = false
-    const result = await app.services.ocr.readIdCard(front, back).catch((err: unknown) => {
-      app.log.warn({ err }, 'OCR no disponible: se pide escribir los datos a mano')
-      ocrFailed = true
-      return EMPTY_OCR
-    })
+    let result: OcrResult
+    try {
+      result = await app.services.ocr.readIdCard(front, back)
+    } catch (err) {
+      app.log.warn({ err }, 'No se pudo validar el documento con OCR')
+      if (err instanceof HttpError) throw err
+      throw unprocessable(
+        'ID_CARD_UNREADABLE',
+        'No pudimos validar el documento. Toma otras fotos con buena luz y con el NUI o número de cédula visible.',
+      )
+    }
+
+    const fields: Record<string, string> = {}
+    if (result.fields.fullName.trim().length < 3) fields.fullName = 'No se pudo leer el nombre'
+    if (!isValidCedula(result.fields.idNumber)) fields.idNumber = 'No se pudo leer un NUI o número de cédula válido'
+    if (!result.fields.disabilityType) fields.disabilityType = 'No se pudo leer el tipo de discapacidad'
+    if (!result.fields.disabilityPercent || result.fields.disabilityPercent < 1) {
+      fields.disabilityPercent = 'No se pudo leer el porcentaje de discapacidad'
+    }
+    if (Object.keys(fields).length) {
+      throw unprocessable(
+        'ID_CARD_UNREADABLE',
+        'La foto no permite validar todos los datos del documento. Toma otras fotos completas, nítidas y sin reflejos.',
+        fields,
+      )
+    }
     const saved = await app.db.idCardScan.create({
       data: {
         frontImage: encrypt(front.data),
@@ -60,17 +72,13 @@ export const idCardRoutes: FastifyPluginAsyncZod = async (app) => {
     const needsReview = Object.entries(result.confidence)
       .filter(([, v]) => v < LOW_CONFIDENCE)
       .map(([k]) => k)
-    const idNumberValid = isValidCedula(result.fields.idNumber)
-    if (!idNumberValid && !needsReview.includes('idNumber')) needsReview.push('idNumber')
     return {
       scanId: saved.id,
-      /** true = no se pudo leer el carnet: todos los campos vienen vacíos y hay que escribirlos */
-      ocrFailed,
       ...result.fields,
       confidence: result.confidence,
       /** Campos que la persona debe revisar ("Leímos estos datos") */
       needsReview,
-      idNumberValid,
+      idNumberValid: true,
       expiresAt: saved.expiresAt.toISOString(),
     }
   }
