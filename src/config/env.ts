@@ -37,24 +37,38 @@ const schema = z.object({
   SESSION_TTL_DAYS: z.coerce.number().int().positive().default(30),
 
   /** Proveedores externos. "mock" = simulado (demo). */
-  OCR_PROVIDER: z.enum(['mock']).default('mock'),
+  /** "ia" = capaz_ia (Ollama). Necesita IA_SERVICE_URL e IA_SERVICE_TOKEN. */
+  OCR_PROVIDER: z.enum(['mock', 'ia']).default('mock'),
+
+  /** Servicio capaz_ia. Sin token, las funciones de IA quedan desactivadas (503). */
+  IA_SERVICE_URL: z.string().url().default('http://localhost:4000'),
+  IA_SERVICE_TOKEN: z.string().optional().transform((v) => v || undefined),
+  IA_TIMEOUT_MS: z.coerce.number().int().positive().default(45000),
   MESSAGING_PROVIDER: z.enum(['mock']).default('mock'),
   TRANSCRIBE_PROVIDER: z.enum(['mock']).default('mock'),
   TTS_PROVIDER: z.enum(['mock']).default('mock'),
 
   /** Solo desarrollo: devuelve el código de ingreso en la respuesta para probar sin WhatsApp/SMS */
   EXPOSE_DEV_LOGIN_CODE: bool,
+  /**
+   * Instancia de DEMOSTRACIÓN publicada (p. ej. en Render): permite EXPOSE_DEV_LOGIN_CODE con NODE_ENV=production
+   * para mostrar el código en pantalla sin WhatsApp/SMS. Nunca en un despliegue con personas reales.
+   */
+  DEMO_MODE: bool,
 })
 
-const parsed = schema.safeParse(process.env)
+// Variables vacías (p. ej. copiadas de .env.example) cuentan como no definidas: así aplican los valores por defecto
+const defined = Object.fromEntries(Object.entries(process.env).filter(([, v]) => v !== undefined && v.trim() !== ''))
+const parsed = schema.safeParse(defined)
 if (!parsed.success) {
   console.error('Variables de entorno inválidas:\n' + z.prettifyError(parsed.error))
   process.exit(1)
 }
-if (parsed.data.NODE_ENV === 'production' && parsed.data.EXPOSE_DEV_LOGIN_CODE) {
-  console.error('EXPOSE_DEV_LOGIN_CODE no puede estar activo en producción')
+if (parsed.data.NODE_ENV === 'production' && parsed.data.EXPOSE_DEV_LOGIN_CODE && !parsed.data.DEMO_MODE) {
+  console.error('EXPOSE_DEV_LOGIN_CODE no puede estar activo en producción (salvo DEMO_MODE=true en una demo)')
   process.exit(1)
 }
+if (parsed.data.DEMO_MODE) console.warn('⚠ DEMO_MODE activo: los códigos de ingreso se muestran en pantalla.')
 
 export const env = parsed.data
 export type Env = typeof env
