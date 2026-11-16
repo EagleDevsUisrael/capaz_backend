@@ -37,10 +37,14 @@ export class IaClient {
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(this.opts.timeoutMs),
       })
-    } catch {
-      throw iaUnavailable(unavailableMessage)
+    } catch (err) {
+      const reason = err instanceof Error ? err.name : 'unknown_error'
+      throw iaUnavailable(`${unavailableMessage} (error de conexión: ${reason})`)
     }
-    if (!res.ok) throw iaUnavailable(unavailableMessage)
+    if (!res.ok) {
+      // No registramos el cuerpo porque puede contener datos de infraestructura o credenciales.
+      throw iaUnavailable(`${unavailableMessage} (IA respondió HTTP ${res.status})`)
+    }
     return (await res.json()) as T
   }
 }
