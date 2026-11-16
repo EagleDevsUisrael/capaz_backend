@@ -18,20 +18,14 @@ services:
       - key: EXPOSE_DEV_LOGIN_CODE
         value: "true"
       - key: OCR_PROVIDER
-        value: ia
-      - key: IA_TIMEOUT_MS
-        value: "60000"
+        value: mock
       - key: DATABASE_URL
-        sync: false
-      - key: DIRECT_URL
         sync: false
       - key: ID_CARD_ENCRYPTION_KEY
         sync: false
       - key: ADMIN_TOKEN
         sync: false
       - key: CORS_ORIGINS
-        sync: false
-      - key: PUBLIC_WEB_URL
         sync: false
       - key: IA_SERVICE_URL
         sync: false
