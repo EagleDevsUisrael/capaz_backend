@@ -9,6 +9,9 @@ export interface IaClientOptions {
   baseUrl: string
   token: string
   timeoutMs: number
+  /** Opcional: credenciales de Cloudflare Access para un hostname protegido con Service Auth. */
+  cloudflareAccessClientId?: string
+  cloudflareAccessClientSecret?: string
 }
 
 export const iaUnavailable = (message: string) => new HttpError(503, 'IA_UNAVAILABLE', message)
@@ -21,7 +24,16 @@ export class IaClient {
     try {
       res = await fetch(new URL(path, this.opts.baseUrl), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.opts.token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.opts.token}`,
+          ...(this.opts.cloudflareAccessClientId && this.opts.cloudflareAccessClientSecret
+            ? {
+                'CF-Access-Client-Id': this.opts.cloudflareAccessClientId,
+                'CF-Access-Client-Secret': this.opts.cloudflareAccessClientSecret,
+              }
+            : {}),
+        },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(this.opts.timeoutMs),
       })

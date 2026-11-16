@@ -43,6 +43,8 @@ const schema = z.object({
   /** Servicio capaz_ia. Sin token, las funciones de IA quedan desactivadas (503). */
   IA_SERVICE_URL: z.string().url().default('http://localhost:4000'),
   IA_SERVICE_TOKEN: z.string().optional().transform((v) => v || undefined),
+  CF_ACCESS_CLIENT_ID: z.string().optional().transform((v) => v || undefined),
+  CF_ACCESS_CLIENT_SECRET: z.string().optional().transform((v) => v || undefined),
   IA_TIMEOUT_MS: z.coerce.number().int().positive().default(45000),
   MESSAGING_PROVIDER: z.enum(['mock']).default('mock'),
   TRANSCRIBE_PROVIDER: z.enum(['mock']).default('mock'),

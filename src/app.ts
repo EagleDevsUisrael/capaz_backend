@@ -71,7 +71,13 @@ export async function buildApp(opts: { db: Db; config: Env; services?: Partial<S
   const ia =
     opts.services?.ia ??
     (opts.config.IA_SERVICE_TOKEN
-      ? new IaClient({ baseUrl: opts.config.IA_SERVICE_URL, token: opts.config.IA_SERVICE_TOKEN, timeoutMs: opts.config.IA_TIMEOUT_MS })
+      ? new IaClient({
+          baseUrl: opts.config.IA_SERVICE_URL,
+          token: opts.config.IA_SERVICE_TOKEN,
+          timeoutMs: opts.config.IA_TIMEOUT_MS,
+          cloudflareAccessClientId: opts.config.CF_ACCESS_CLIENT_ID,
+          cloudflareAccessClientSecret: opts.config.CF_ACCESS_CLIENT_SECRET,
+        })
       : null)
   app.decorate('services', {
     ia,
