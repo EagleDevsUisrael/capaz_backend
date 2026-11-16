@@ -60,7 +60,7 @@ describe('motor de match (ejemplo del documento)', () => {
 
   it('sin ajustes marcados da 15 de 30 y pide completarlos', () => {
     const m = scoreJob({ ...DEMO_CANDIDATE, accommodationsNeeded: [] }, job('Desarrollador backend'))
-    expect(m.breakdown.accommodations).toBe(15)
+    expect(m.breakdown.accommodations).toBe(13)
     expect(m.warnings.some((w) => w.includes('ajustes'))).toBe(true)
   })
 

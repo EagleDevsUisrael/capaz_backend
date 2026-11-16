@@ -25,7 +25,7 @@ import {
 } from './catalog.js'
 
 export const RECOMMEND_THRESHOLD = 70
-export const WEIGHTS = { disability: 40, accommodations: 30, experience: 25, education: 5 } as const
+export const WEIGHTS = { disability: 60, accommodations: 25, experience: 10, education: 5 } as const
 
 export interface MatchCandidate {
   disabilityType: string
@@ -178,7 +178,7 @@ export function scoreJob(c: MatchCandidate, j: MatchJob): Match {
     warnings.push(`Pregunta si pueden darte: ${c.otherAccommodation.trim()}`)
   }
 
-  // Experiencia (25): habilidades y palabras de experienceText contra keywords
+  // Experiencia y habilidades (10): palabras de experienceText y skills contra keywords
   let experience = 0
   const keywords = [...new Set(j.keywords.map(normalize).map((k) => k.trim()).filter(Boolean))]
   if (keywords.length > 0) {
