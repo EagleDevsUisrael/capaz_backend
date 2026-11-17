@@ -207,6 +207,38 @@ describe('API de Capaz (flujo completo)', () => {
     }
   })
 
+  it('carnet: distingue una cédula sin datos de discapacidad y no permite continuar', async () => {
+    const original = t.app.services.ocr
+    t.app.services.ocr = {
+      name: 'sin-discapacidad',
+      readIdCard: async () => ({
+        provider: 'test',
+        fields: {
+          fullName: 'Persona De Prueba',
+          idNumber: '1710034065',
+          birthDate: '1990-01-01',
+          disabilityType: null,
+          disabilityPercent: null,
+          validity: null,
+        },
+        confidence: { fullName: 0.98, idNumber: 0.98, birthDate: 0.9, disabilityType: 0, disabilityPercent: 0, validity: 0 },
+      }),
+    }
+    try {
+      const mp = multipart({
+        front: { data: fakeJpeg('f-sin-discapacidad'), filename: 'f.jpg', type: 'image/jpeg' },
+        back: { data: fakeJpeg('b-sin-discapacidad'), filename: 'b.jpg', type: 'image/jpeg' },
+      })
+      const r = await inject({ method: 'POST', url: '/api/id-card/scan', ...mp })
+      expect(r.statusCode, r.body).toBe(422)
+      expect(r.json().error.code).toBe('DISABILITY_DATA_NOT_FOUND')
+      expect(r.json().error.fields).toMatchObject({ disabilityType: expect.any(String), disabilityPercent: expect.any(String) })
+      expect(r.json().error.message).toMatch(/información de discapacidad/i)
+    } finally {
+      t.app.services.ocr = original
+    }
+  })
+
   it('registro completo: carnet → contacto → experiencia → privacidad, con postulación pendiente', async () => {
     const mp = multipart({
       front: { data: fakeJpeg('front-1'), filename: 'front.jpg', type: 'image/jpeg' },

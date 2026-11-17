@@ -42,18 +42,27 @@ export const idCardRoutes: FastifyPluginAsyncZod = async (app) => {
       )
     }
 
-    const fields: Record<string, string> = {}
-    if (result.fields.fullName.trim().length < 3) fields.fullName = 'No se pudo leer el nombre'
-    if (!isValidCedula(result.fields.idNumber)) fields.idNumber = 'No se pudo leer un NUI o número de cédula válido'
-    if (!result.fields.disabilityType) fields.disabilityType = 'No se pudo leer el tipo de discapacidad'
-    if (!result.fields.disabilityPercent || result.fields.disabilityPercent < 1) {
-      fields.disabilityPercent = 'No se pudo leer el porcentaje de discapacidad'
-    }
-    if (Object.keys(fields).length) {
+    const identityFields: Record<string, string> = {}
+    if (result.fields.fullName.trim().length < 3) identityFields.fullName = 'No se pudo leer el nombre'
+    if (!isValidCedula(result.fields.idNumber)) identityFields.idNumber = 'No se pudo leer un NUI o número de cédula válido'
+    if (Object.keys(identityFields).length) {
       throw unprocessable(
         'ID_CARD_UNREADABLE',
-        'La foto no permite validar todos los datos del documento. Toma otras fotos completas, nítidas y sin reflejos.',
-        fields,
+        'La foto no permite validar la identidad. Toma otras fotos completas, nítidas y sin reflejos.',
+        identityFields,
+      )
+    }
+
+    const disabilityFields: Record<string, string> = {}
+    if (!result.fields.disabilityType) disabilityFields.disabilityType = 'No se encontró el tipo de discapacidad'
+    if (!result.fields.disabilityPercent || result.fields.disabilityPercent < 1) {
+      disabilityFields.disabilityPercent = 'No se encontró el porcentaje de discapacidad'
+    }
+    if (Object.keys(disabilityFields).length) {
+      throw unprocessable(
+        'DISABILITY_DATA_NOT_FOUND',
+        'No encontramos información de discapacidad en el documento. Sube fotos más claras o actualiza tu cédula mediante el MSP.',
+        disabilityFields,
       )
     }
     const saved = await app.db.idCardScan.create({
