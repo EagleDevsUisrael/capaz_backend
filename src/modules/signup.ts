@@ -7,7 +7,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { z } from 'zod'
 import { scoreJob } from '../domain/matchEngine.js'
 import { Prisma } from '../generated/prisma/client.js'
-import { conflict, gone, notFound } from '../lib/errors.js'
+import { conflict, gone, notFound, unprocessable } from '../lib/errors.js'
 import { createSession, recordConsents } from '../lib/sessions.js'
 import { matchCandidateOf, profileDto } from './dto.js'
 import { claimCvUpload } from './cv.js'
@@ -45,6 +45,9 @@ export const signupRoutes: FastifyPluginAsyncZod = async (app) => {
       }
       if (scan.expiresAt < new Date()) {
         throw gone('SCAN_EXPIRED', 'Pasó mucho tiempo desde que subiste el carnet. Vuelve a tomar las fotos.')
+      }
+      if (scan.ocrProvider === 'none') {
+        throw unprocessable('ID_CARD_UNREADABLE', 'No pudimos validar ese documento. Vuelve al paso 1 y toma otras fotos.')
       }
       const exists = await app.db.candidate.findUnique({ where: { idNumber: idCard.idNumber }, select: { id: true } })
       if (exists) throw conflict('ALREADY_REGISTERED', 'Ya tienes una cuenta con esta cédula. Ingresa con tu cédula.')

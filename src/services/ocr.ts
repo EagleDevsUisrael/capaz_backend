@@ -80,7 +80,7 @@ export class MockOcrProvider implements OcrProvider {
 
 /**
  * OCR con capaz_ia (Ollama con un modelo de visión). Si la IA no responde NO se usa el simulado:
- * mostraría datos de otra persona. Se responde 503 y el front ofrece escribir los datos a mano.
+ * mostraría datos de otra persona. Se responde con error y el front exige tomar otras fotos.
  */
 export class IaOcrProvider implements OcrProvider {
   readonly name = 'ia'
@@ -92,7 +92,7 @@ export class IaOcrProvider implements OcrProvider {
     const r = await this.ia.post<{ provider: string; fields: IdCardFields; confidence: IdCardConfidence }>(
       '/v1/id-card/read',
       { front: img(front), back: img(back) },
-      'No pudimos leer tu carnet en este momento. Puedes escribir tus datos a mano.',
+      'No pudimos validar tu documento en este momento. Intenta de nuevo con otras fotos.',
     )
     return { fields: r.fields, confidence: r.confidence, provider: r.provider }
   }

@@ -43,6 +43,19 @@ export class IaClient {
       throw iaUnavailable(`${unavailableMessage} (error de conexión: ${reason})`)
     }
     if (!res.ok) {
+      if (res.status === 422) {
+        try {
+          const body = (await res.json()) as { error?: { code?: string; message?: string } }
+          throw new HttpError(
+            422,
+            body.error?.code ?? 'ID_CARD_DATA_INVALID',
+            body.error?.message ?? 'La IA no pudo validar los datos del documento.',
+          )
+        } catch (err) {
+          if (err instanceof HttpError) throw err
+          throw new HttpError(422, 'ID_CARD_DATA_INVALID', 'La IA no pudo validar los datos del documento.')
+        }
+      }
       // No registramos el cuerpo porque puede contener datos de infraestructura o credenciales.
       throw iaUnavailable(`${unavailableMessage} (IA respondió HTTP ${res.status})`)
     }
